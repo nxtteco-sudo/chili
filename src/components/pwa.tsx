@@ -7,8 +7,18 @@ type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<u
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if (!("serviceWorker" in navigator)) return;
+    if (process.env.NODE_ENV === "production") {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      return;
+    }
+    // In dev, a worker left over from a production run on the same port would
+    // serve stale JS chunks and cause hydration mismatches, so remove it.
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      if (regs.length === 0) return;
+      regs.forEach((r) => r.unregister());
+      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+    });
   }, []);
   return null;
 }
