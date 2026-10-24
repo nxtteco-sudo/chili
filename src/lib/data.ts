@@ -2,11 +2,11 @@ import "server-only";
 import { connection } from "next/server";
 import { batchInfo, isActiveBatch } from "./batches";
 import { addDays, dayKey, diffDays, monthKey } from "./dates";
-import { readStore } from "./store";
+import { readStore } from "./db";
 import type { Activity, ActivityType, Batch, FarmData, Problem, Product } from "./types";
 
-// Every page reads through these functions. Phase 2 swaps the bodies for
-// Supabase queries; the signatures stay the same.
+// Every page reads through these functions. Data comes from Supabase via
+// readStore(), loaded once per request and filtered here.
 
 async function farm(): Promise<FarmData> {
   await connection();
@@ -23,12 +23,6 @@ async function farm(): Promise<FarmData> {
 
 export async function getToday() {
   return (await farm()).today;
-}
-
-export async function getStoreInfo() {
-  await connection();
-  const store = await readStore();
-  return { seededOn: store.seededOn };
 }
 
 export async function getProducts(): Promise<Product[]> {

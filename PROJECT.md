@@ -2,7 +2,7 @@
 
 A farm logbook for a chili farm. The farmer logs everything (planting batches, pesticide sprays, AB fertilizer tank mixes, other baja, problems and how they were solved) by messaging a **Telegram bot** in mixed English/Malay. Every entry appears on a **dashboard** (installable PWA) that works on phone and laptop. When a problem comes back, the farmer can ask the bot or search the dashboard to see what was done the first time and whether it worked.
 
-> Status: **Phase 1b done** (2026-10-24): dashboard matches how the farm works (planting batches + varieties, AB tank mix with EC/pH, other baja, no RM), on a local file store (`data/`). **Next: Phase 2, connect Supabase.**
+> Status: **Phase 2 in progress** (2026-10-24): app code switched to Supabase (database, private photo storage, email + password login, member allow-list). Waiting on: run `supabase/migrations/0001_init.sql`, create the two accounts.
 
 ---
 
@@ -406,7 +406,9 @@ create table drafts (
 );
 ```
 
-> Table order: `varieties` → `batches` → `problems` → `activities` (foreign keys). The migration files will handle the ordering.
+> Table order: `varieties` → `batches` → `problems` → `activities` (foreign keys).
+>
+> **As built (Phase 2):** the real schema is `supabase/migrations/0001_init.sql`. It differs from the sketch above: ids are `text`; each activity keeps its type-specific fields in one `details jsonb` column and its batches in a `batch_ids text[]` (a trigger removes a deleted batch); photos are a `jsonb` list on each record with files in the private `photos` bucket; access is limited to users in `farm_members` by Row Level Security. The migration files will handle the ordering.
 
 **Row Level Security** is on for every table. The bot uses the service-role key on the server only. The dashboard reads with the logged-in user's session.
 
@@ -462,7 +464,7 @@ PWA:
 
 - Bot ignores any Telegram user not in `users`
 - Webhook is protected with Telegram's `secret_token` header
-- Dashboard requires login (Supabase magic link) for whitelisted emails only
+- Dashboard requires login: **email + password** (works inside the installed iPhone app, unlike magic links). Only users in `farm_members` can read or write anything (Row Level Security), and public sign-ups are switched off in Supabase
 - Photos live in a private bucket and are served via short-lived signed URLs
 - Secrets only in Vercel environment variables, never in the repo
 

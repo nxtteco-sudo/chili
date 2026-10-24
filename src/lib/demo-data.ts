@@ -182,7 +182,7 @@ function addFertilizer(
 }
 
 // Problem fixes are logged separately below, so routine tanks skip those days.
-const PROBLEM_TANK_DAYS = new Set([120, 115, 80, 75]);
+const PROBLEM_TANK_DAYS = new Set([120, 115, 85, 80, 75]);
 
 function routine(b: Builder) {
   for (let k = DAYS; k >= 0; k--) {

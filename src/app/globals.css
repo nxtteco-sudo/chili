@@ -30,3 +30,12 @@
   --color-serious: var(--serious);
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+/* Login screen: hide the app's menus and drop the content entrance animation,
+   whose transform would otherwise trap the full-screen login layer. */
+body:has(.login-screen) :is(.app-sidebar, .app-topbar, nav[aria-label="Mobile navigation"], .app-content > footer) {
+  display: none;
+}
+body:has(.login-screen) .app-content {
+  animation: none;
+}

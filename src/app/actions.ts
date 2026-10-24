@@ -4,19 +4,31 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addDays, atTime } from "@/lib/dates";
-import { Fields, type FormState } from "@/lib/form-fields";
+import { requireMember } from "@/lib/auth";
 import {
+  deleteActivityRow,
+  deleteBatchRow,
   deletePhotoFiles,
-  mutate,
+  deleteProblemRow,
+  deleteProblemUpdateRow,
+  deleteProductRow,
+  deleteVarietyRow,
   photoFileExists,
   readStore,
-  resetStore,
+  resetToDemo,
+  saveActivityRow,
+  saveBatchRow,
+  saveProblemRow,
+  saveProblemUpdateRow,
+  saveProductRow,
+  saveVarietyRow,
   type Store,
-} from "@/lib/store";
+} from "@/lib/db";
+import { Fields, type FormState } from "@/lib/form-fields";
 import type { Activity, Batch, Photo, Problem, ProblemUpdate, Product, TankAdditive, Variety } from "@/lib/types";
 
-// No login yet: these only run on this computer until Supabase Auth is added
-// in Phase 2, which must add a session check at the top of every action.
+// Server actions can be called directly with a POST, so every one starts with
+// requireMember(); Row Level Security in Supabase is the second line of defence.
 
 const MAX_PHOTOS = 10;
 
@@ -63,6 +75,7 @@ function productIdsOfActivity(a: Activity) {
 // ── Activities (spray / tank mix / other baja) ────────────────────────────
 
 export async function saveActivity(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const id = f.str("id", "Id");
   const type = f.oneOf("type", "Type", ["spray", "tank_mix", "fertilizer"] as const);
@@ -148,14 +161,9 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
   }
   if (!f.ok || !activity) return f.state();
 
-  const saved = activity;
-  await mutate((s) => {
-    const i = s.activities.findIndex((a) => a.id === saved.id);
-    if (i >= 0) s.activities[i] = saved;
-    else s.activities.push(saved);
-  });
+  await saveActivityRow(activity);
   await deletePhotoFiles(removed);
-  done(`/entries/${saved.id}`);
+  done(`/entries/${activity.id}`);
 }
 
 // Extra fertilizer rows in a tank mix arrive as parallel lists; blank rows are skipped.
@@ -176,13 +184,11 @@ function parseAdditives(f: Fields, fd: FormData, store: Store): TankAdditive[] {
 }
 
 export async function deleteActivity(fd: FormData) {
+  await requireMember();
   const id = String(fd.get("id") ?? "");
-  const removed = await mutate((s) => {
-    const a = s.activities.find((x) => x.id === id);
-    s.activities = s.activities.filter((x) => x.id !== id);
-    return a ? allPhotoIds(a.photos) : [];
-  });
-  await deletePhotoFiles(removed);
+  const a = (await readStore()).activities.find((x) => x.id === id);
+  await deleteActivityRow(id);
+  await deletePhotoFiles(a ? allPhotoIds(a.photos) : []);
   done("/timeline");
 }
 
@@ -192,6 +198,7 @@ const PARTS = ["leaf", "stem", "root", "flower", "fruit", "whole plant"] as cons
 const CAUSES = ["pest", "disease", "nutrient", "water", "weather", "unknown"] as const;
 
 export async function saveProblem(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const id = f.str("id", "Id");
   const title = f.str("title", "Title", { required: true, max: 120 });
@@ -233,28 +240,23 @@ export async function saveProblem(_prev: FormState, fd: FormData): Promise<FormS
     batchId: batchId || undefined,
     photos,
   };
-  await mutate((s) => {
-    const i = s.problems.findIndex((p) => p.id === problem.id);
-    if (i >= 0) s.problems[i] = problem;
-    else s.problems.push(problem);
-  });
+  await saveProblemRow(problem);
   await deletePhotoFiles(removed);
   done(`/problems/${problem.id}`);
 }
 
 export async function deleteProblem(fd: FormData) {
+  await requireMember();
   const id = String(fd.get("id") ?? "");
-  const removed = await mutate((s) => {
-    const p = s.problems.find((x) => x.id === id);
-    s.problems = s.problems.filter((x) => x.id !== id);
-    for (const a of s.activities) if (a.problemId === id) a.problemId = undefined;
-    return p ? [...allPhotoIds(p.photos), ...p.updates.flatMap((u) => allPhotoIds(u.photos))] : [];
-  });
-  await deletePhotoFiles(removed);
+  const p = (await readStore()).problems.find((x) => x.id === id);
+  // Updates cascade; linked entries stay, with the problem link cleared.
+  await deleteProblemRow(id);
+  await deletePhotoFiles(p ? [...allPhotoIds(p.photos), ...p.updates.flatMap((u) => allPhotoIds(u.photos))] : []);
   done("/problems");
 }
 
 export async function addProblemUpdate(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const problemId = f.str("problemId", "Problem", { required: true });
   const kind = f.oneOf("kind", "Type", ["followup", "action"] as const);
@@ -275,27 +277,24 @@ export async function addProblemUpdate(_prev: FormState, fd: FormData): Promise<
     occurredAt: atTime(date!, time!),
     photos,
   };
-  await mutate((s) => {
-    s.problems.find((p) => p.id === problemId)?.updates.push(update);
-  });
+  await saveProblemUpdateRow(problemId!, update);
   revalidatePath("/", "layout");
   return { savedAt: Date.now() };
 }
 
 export async function deleteProblemUpdate(fd: FormData) {
+  await requireMember();
   const problemId = String(fd.get("problemId") ?? "");
   const updateId = String(fd.get("updateId") ?? "");
-  const removed = await mutate((s) => {
-    const p = s.problems.find((x) => x.id === problemId);
-    const u = p?.updates.find((x) => x.id === updateId);
-    if (p) p.updates = p.updates.filter((x) => x.id !== updateId);
-    return u ? allPhotoIds(u.photos) : [];
-  });
-  await deletePhotoFiles(removed);
+  const u = (await readStore()).problems.find((x) => x.id === problemId)?.updates.find((x) => x.id === updateId);
+  if (!u) return;
+  await deleteProblemUpdateRow(updateId);
+  await deletePhotoFiles(allPhotoIds(u.photos));
   revalidatePath("/", "layout");
 }
 
 export async function closeProblem(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const problemId = f.str("problemId", "Problem", { required: true });
   const outcome = f.oneOf("outcome", "Result", ["solved", "partly", "not_solved"] as const);
@@ -306,19 +305,15 @@ export async function closeProblem(_prev: FormState, fd: FormData): Promise<Form
   if (!problem) return { error: "This problem no longer exists." };
   if (resolvedOn && resolvedOn < problem.foundOn) f.errors.resolvedOn = "Can't be before the day it was found";
   if (!f.ok) return f.state();
-  await mutate((s) => {
-    const p = s.problems.find((x) => x.id === problemId);
-    if (p) Object.assign(p, { status: "resolved", outcome, lesson, resolvedOn });
-  });
+  await saveProblemRow({ ...problem, status: "resolved", outcome, lesson, resolvedOn });
   done(`/problems/${problemId}`);
 }
 
 export async function reopenProblem(fd: FormData) {
+  await requireMember();
   const problemId = String(fd.get("problemId") ?? "");
-  await mutate((s) => {
-    const p = s.problems.find((x) => x.id === problemId);
-    if (p) Object.assign(p, { status: "open", outcome: undefined, resolvedOn: undefined });
-  });
+  const problem = (await readStore()).problems.find((x) => x.id === problemId);
+  if (problem) await saveProblemRow({ ...problem, status: "open", outcome: undefined, resolvedOn: undefined });
   done(`/problems/${problemId}`);
 }
 
@@ -344,6 +339,7 @@ function checkDateOrder(f: Fields, dates: Partial<Record<(typeof BATCH_DATES)[nu
 }
 
 export async function saveBatch(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const id = f.str("id", "Id");
   const name = f.str("name", "Batch name", { required: true, max: 80 });
@@ -376,11 +372,7 @@ export async function saveBatch(_prev: FormState, fd: FormData): Promise<FormSta
     notes,
     photos,
   };
-  await mutate((s) => {
-    const i = s.batches.findIndex((b) => b.id === batch.id);
-    if (i >= 0) s.batches[i] = batch;
-    else s.batches.push(batch);
-  });
+  await saveBatchRow(batch);
   await deletePhotoFiles(removed);
   done(`/batches/${batch.id}`);
 }
@@ -388,6 +380,7 @@ export async function saveBatch(_prev: FormState, fd: FormData): Promise<FormSta
 const MILESTONE_FIELD = { flower: "firstFlowerOn", harvest: "firstHarvestOn", end: "endedOn" } as const;
 
 export async function markBatchMilestone(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const batchId = f.str("batchId", "Batch", { required: true });
   const milestone = f.oneOf("milestone", "Milestone", ["flower", "harvest", "end"] as const);
@@ -400,27 +393,22 @@ export async function markBatchMilestone(_prev: FormState, fd: FormData): Promis
   const next = { ...batch, [field]: date };
   checkDateOrder(f, next);
   if (!f.ok) return { error: Object.values(f.errors)[0] };
-  await mutate((s) => {
-    const b = s.batches.find((x) => x.id === batchId);
-    if (b) b[field] = date;
-  });
+  await saveBatchRow(next);
   done(`/batches/${batchId}`);
 }
 
 export async function deleteBatch(fd: FormData) {
+  await requireMember();
   const id = String(fd.get("id") ?? "");
-  const removed = await mutate((s) => {
-    const b = s.batches.find((x) => x.id === id);
-    s.batches = s.batches.filter((x) => x.id !== id);
-    for (const a of s.activities) a.batchIds = a.batchIds.filter((x) => x !== id);
-    for (const p of s.problems) if (p.batchId === id) p.batchId = undefined;
-    return b ? allPhotoIds(b.photos) : [];
-  });
-  await deletePhotoFiles(removed);
+  const b = (await readStore()).batches.find((x) => x.id === id);
+  // The database drops the batch from entries and problems.
+  await deleteBatchRow(id);
+  await deletePhotoFiles(b ? allPhotoIds(b.photos) : []);
   done("/batches");
 }
 
 export async function saveVariety(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const id = f.str("id", "Id");
   const name = f.str("name", "Variety name", { required: true, max: 80 });
@@ -442,26 +430,21 @@ export async function saveVariety(_prev: FormState, fd: FormData): Promise<FormS
   if (!f.ok) return f.state();
 
   const saved: Variety = { id: existing?.id ?? randomUUID(), ...variety };
-  await mutate((s) => {
-    const i = s.varieties.findIndex((v) => v.id === saved.id);
-    if (i >= 0) s.varieties[i] = saved;
-    else s.varieties.push(saved);
-  });
+  await saveVarietyRow(saved);
   done(returnTo ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}variety=${saved.id}` : "/varieties");
 }
 
 export async function deleteVariety(fd: FormData) {
+  await requireMember();
   const id = String(fd.get("id") ?? "");
-  await mutate((s) => {
-    if (s.batches.some((b) => b.varietyId === id)) return;
-    s.varieties = s.varieties.filter((v) => v.id !== id);
-  });
+  if (!(await readStore()).batches.some((b) => b.varietyId === id)) await deleteVarietyRow(id);
   done("/varieties");
 }
 
 // ── Products ──────────────────────────────────────────────────────────────
 
 export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
   const f = new Fields(fd);
   const id = f.str("id", "Id");
   const name = f.str("name", "Name", { required: true, max: 100 });
@@ -495,26 +478,21 @@ export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormS
     phiDays,
     notes,
   };
-  await mutate((s) => {
-    const i = s.products.findIndex((p) => p.id === product.id);
-    if (i >= 0) s.products[i] = product;
-    else s.products.push(product);
-  });
+  await saveProductRow(product);
   done(returnTo ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}product=${product.id}` : `/products/${product.id}`);
 }
 
 export async function deleteProduct(fd: FormData) {
+  await requireMember();
   const id = String(fd.get("id") ?? "");
-  await mutate((s) => {
-    if (s.activities.some((a) => productIdsOfActivity(a).includes(id))) return;
-    s.products = s.products.filter((p) => p.id !== id);
-  });
+  if (!(await readStore()).activities.some((a) => productIdsOfActivity(a).includes(id))) await deleteProductRow(id);
   done("/products");
 }
 
 // ── Demo data ─────────────────────────────────────────────────────────────
 
 export async function resetDemoData() {
-  await resetStore();
+  await requireMember();
+  await resetToDemo();
   done("/");
 }

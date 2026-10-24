@@ -35,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               {children}
               <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-[11px] text-muted">
                 <span>Kebun Cili <span className="mx-2 opacity-40">/</span> A little care. A better harvest.</span>
-                <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-warn" /> Demo workspace · Saved on this computer</span>
+                <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-warn" /> Demo data · Saved online</span>
               </footer>
             </div>
           </main>

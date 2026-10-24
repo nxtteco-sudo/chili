@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CalendarDays, ChartColumn, ChevronRight, FileSpreadsheet, Package, Plus, Send, Wheat } from "lucide-react";
+import { CalendarDays, ChartColumn, ChevronRight, FileSpreadsheet, LogOut, Package, Plus, Send, UserRound, Wheat } from "lucide-react";
 import { resetDemoData } from "@/app/actions";
+import { signOut } from "@/app/login/actions";
 import { DeleteButton } from "@/components/form-ui";
 import { InstallHint } from "@/components/pwa";
 import { Card, PageHeader, SectionTitle } from "@/components/ui";
-import { getStoreInfo } from "@/lib/data";
-import { formatLong } from "@/lib/dates";
+import { getMember } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "More" };
 
@@ -84,16 +84,34 @@ export default function MorePage() {
         </Card>
 
         <section>
+          <SectionTitle>Account</SectionTitle>
+          <Card className="flex flex-wrap items-center gap-3 p-4">
+            <span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-accent">
+              <UserRound className="size-5" />
+            </span>
+            <Suspense fallback={<span className="flex-1 text-[15px] text-ink-2">Loading…</span>}>
+              <WhoAmI />
+            </Suspense>
+            <form action={signOut}>
+              <button type="submit" className="inline-flex h-11 items-center gap-2 rounded-xl border border-line px-4 text-[15px] font-medium hover:bg-surface-2">
+                <LogOut className="size-4" /> Log out
+              </button>
+            </form>
+          </Card>
+        </section>
+
+        <section>
           <SectionTitle>Demo data</SectionTitle>
           <Card className="p-4">
-            <Suspense fallback={<p className="text-[15px] text-ink-2">Loading…</p>}>
-              <DemoInfo />
-            </Suspense>
+            <p className="text-[15px] text-ink-2">
+              The farm records are saved online. Until dad starts logging for real, this resets everything
+              to the demo farm. All entries and photos are replaced, for both of you.
+            </p>
             <DeleteButton
               action={resetDemoData}
               fields={{}}
               label="Reset to demo data"
-              confirmText="Delete everything you added and go back to the demo data? This can't be undone."
+              confirmText="Delete ALL farm records and photos online and load the demo farm? This can't be undone."
               className="-ml-4 mt-2"
             />
           </Card>
@@ -103,12 +121,12 @@ export default function MorePage() {
   );
 }
 
-async function DemoInfo() {
-  const { seededOn } = await getStoreInfo();
+async function WhoAmI() {
+  const member = await getMember();
   return (
-    <p className="text-[15px] text-ink-2">
-      Data is saved in a file on this computer (started {formatLong(seededOn)}). When the online
-      database is connected, the demo data will be cleared and dad&apos;s real entries start fresh.
-    </p>
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-[15px] font-medium">{member?.name ?? "Not logged in"}</span>
+      <span className="block truncate text-sm text-ink-2">{member?.email}</span>
+    </span>
   );
 }

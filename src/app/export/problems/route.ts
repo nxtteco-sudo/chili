@@ -1,3 +1,4 @@
+import { getMember } from "@/lib/auth";
 import { csvResponse } from "@/lib/csv";
 import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { diffDays, formatTime } from "@/lib/dates";
@@ -5,6 +6,7 @@ import { describeActivity } from "@/lib/describe";
 import { ENTRY_META, OUTCOME_META } from "@/lib/entry-meta";
 
 export async function GET() {
+  if (!(await getMember())) return new Response("Please log in", { status: 401 });
   const [today, problems, activities, products, batches] = await Promise.all([
     getToday(),
     getProblems(),

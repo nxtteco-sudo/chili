@@ -1,9 +1,11 @@
+import { getMember } from "@/lib/auth";
 import { STAGE_META } from "@/lib/batches";
 import { csvResponse } from "@/lib/csv";
 import { getActivities, getBatches, getProblems, getToday } from "@/lib/data";
 import { diffDays } from "@/lib/dates";
 
 export async function GET() {
+  if (!(await getMember())) return new Response("Please log in", { status: 401 });
   const [today, batches, activities, problems] = await Promise.all([getToday(), getBatches(), getActivities(), getProblems()]);
 
   const rows = [...batches].reverse().map(({ batch: b, variety, info }) => [

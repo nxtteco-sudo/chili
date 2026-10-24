@@ -96,3 +96,21 @@ const clock = new Intl.DateTimeFormat("en-GB", {
 export function nowTime(date = new Date()): string {
   return clock.format(date);
 }
+
+const isoParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: FARM_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+// Any timestamp → farm-local ISO ("2026-10-24T07:30:00+08:00"), the format the
+// rest of the app slices and sorts on. The database returns UTC.
+export function farmIso(ts: string | Date): string {
+  const p = Object.fromEntries(isoParts.formatToParts(new Date(ts)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${FARM_OFFSET}`;
+}
