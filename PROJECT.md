@@ -1,15 +1,16 @@
 # Chili Farm Log — Project Plan
 
-A farm logbook for a chili farm. The farmer logs everything (pesticide sprays, baja, watering, problems and how they were solved) by messaging a **Telegram bot** in mixed English/Malay. Every entry appears on a **dashboard** (installable PWA) that works on phone and laptop. When a problem comes back, the farmer can ask the bot or search the dashboard to see what was done the first time and whether it worked.
+A farm logbook for a chili farm. The farmer logs everything (planting batches, pesticide sprays, AB fertilizer tank mixes, other baja, problems and how they were solved) by messaging a **Telegram bot** in mixed English/Malay. Every entry appears on a **dashboard** (installable PWA) that works on phone and laptop. When a problem comes back, the farmer can ask the bot or search the dashboard to see what was done the first time and whether it worked.
 
-> Status: **Dashboard finished** (2026-10-24): all pages plus add/edit/delete, problems workflow, photo upload and CSV export, saved to a local file (`data/`). Next: Phase 2, connect Supabase.
+> Status: **Dashboard v1 finished** (2026-10-24) on a local file store (`data/`). **Next: Phase 1b, update the dashboard to match how the farm works** (§6 below: planting batches, AB tank mix, no RM), then Phase 2 (Supabase).
 
 ---
 
 ## 1. Goals
 
 1. **Logging takes seconds.** The farmer only uses Telegram, with buttons or free text, in English, Malay or both.
-2. **Every detail is recorded:** product, dosage, quantity, cost, method, plant stage, weather, photos.
+2. **Every detail is recorded:** planting dates, product, dosage, quantity, AB mix with EC/pH, weather, photos. **No money (RM)**: costs and prices live in the separate accounts dashboard.
+6. **Crop timeline.** Each planting batch shows sowing → transplant → flowering → harvest, with expected dates from the farmer's own day counts.
 3. **Problem library.** Each problem keeps its photos, symptoms, actions, follow-ups and outcome, so the history can be reused.
 4. **"Have we seen this before?"** The bot finds similar past problems from a photo or a description and replies with what worked.
 5. **Simple dashboard** with a timeline, a problem library and search, installable on phone as an app (PWA).
@@ -17,7 +18,9 @@ A farm logbook for a chili farm. The farmer logs everything (pesticide sprays, b
 ### Out of scope for v1 (designed for, not built)
 
 - Blocks / plots (the schema already has a nullable `plot_id`)
-- Reminders ("7 days since last baja")
+- Reminders ("7 days since last tank mix")
+- Harvest kg and prices (already in the separate accounts dashboard)
+- Logging individual drip runs (the timer waters automatically)
 - Multiple farms or many users
 - Native Android APK (the PWA covers this; it can be wrapped later if needed)
 
@@ -88,9 +91,9 @@ A single Next.js project contains both the bot webhook and the dashboard.
 ### 5.1 Main menu (persistent keyboard)
 
 ```
-[ 🧪 Spray ]  [ 🌱 Baja ]
-[ 💧 Water ]  [ ⚠️ Problem ]
-[ 🔍 Cari (search) ]  [ 📋 Recent ]
+[ 🧪 Spray ]  [ 🪣 Tank mix (AB) ]
+[ 🌱 Other baja ]  [ ⚠️ Problem ]
+[ 🌶️ Batch ]  [ 🔍 Cari (search) ]  [ 📋 Recent ]
 ```
 
 ### 5.2 Two ways to log
@@ -106,7 +109,7 @@ Bot:  🧪 SPRAY — semak dulu: (check first)
       💊 Movento (insecticide)
       📏 20ml / tong × 4 tong = 80ml
       🎯 Sebab: thrips
-      💰 Kos: ? (tap to add)
+      🌶️ Batch: Okt 2026 (day 45)
       [ ✅ Betul, simpan ]  [ ✏️ Edit ]  [ ❌ Batal ]
 ```
 
@@ -129,7 +132,7 @@ Bot:  🧪 SPRAY — semak dulu: (check first)
       Hasil: ✅ Selesai lepas 10 hari
       [ Lihat (view) ]
    ```
-3. **Actions.** Sprays or baja logged while a problem is open can be linked to it, either automatically ("Ini untuk masalah thrips?" — "Is this for the thrips problem?") or by hand.
+3. **Actions.** Sprays, tank mixes or baja logged while a problem is open can be linked to it, either automatically ("Ini untuk masalah thrips?" — "Is this for the thrips problem?") or by hand.
 4. **Follow-ups.** Dad replies to the problem message with a new photo or note, e.g. *"lepas 5 hari dah kurang"* ("less after 5 days"), and it is added to that problem's timeline.
 5. **Close.** `/tutup` (close) or a button sets the outcome: ✅ Selesai (solved) / ⚠️ Separuh (partly) / ❌ Tak jadi (didn't work), plus what he learned.
 
@@ -154,50 +157,71 @@ Bot:  🧪 SPRAY — semak dulu: (check first)
 
 ## 6. What gets recorded
 
-### 🧪 Pesticide / spray
-- Date and time (default: now; "pagi tadi" / "semalam" (this morning / yesterday) are understood)
-- Product (from the product catalog or new)
-- Product type: insecticide / fungicide / herbicide / miticide / other
-- Active ingredient (optional)
-- Dosage per tank + tank size (e.g. 20 ml per 16 L)
-- Number of tanks, total quantity used
-- Target pest / disease / reason
-- Weather (sunny / cloudy / rain after spray)
-- Cost (auto-calculated from the catalog price when possible)
-- Pre-harvest interval (*tempoh selamat*) in days, so the dashboard can show the earliest safe harvest date
-- Linked problem (optional)
-- Photos, notes
+How the farm works: chili grows in **polybags on drip**. **AB fertilizer** is mixed into a **big tank** and the timer drips it automatically (water and fertilizer together), so individual drip runs are **not** logged. Only **pesticides are sprayed**. **No money (RM)** anywhere: costs, prices and harvest kg live in the separate accounts dashboard.
 
-### 🌱 Baja (fertilizer)
-- Date and time
-- Product, NPK ratio (e.g. 15-15-15), extra elements (Ca, Mg, trace)
-- Type: granular / foliar / organic / fertigation / other
-- Quantity + unit (kg / karung (sack) / L / g)
-- Method: tabur (spread by hand) / siram (watering in) / spray / fertigation
-- Plant stage: nursery / vegetative / flowering / fruiting / harvest
-- Cost
-- Linked problem (optional)
-- Photos, notes
+### 🌶️ Planting batch (Musim tanam)
+The farmer keys in everything. One or several batches can be active at once.
+- Batch name (e.g. "Batch Okt 2026")
+- Variety (picked from his own saved list, or typed new)
+- Seeds sown date (*tabur benih / semai*) + number of seeds (optional)
+- Transplanted to polybag date (*pindah ke polibeg*) + number of polybags (optional)
+- Actual milestones, tapped when they happen: first flowers, first harvest, end of crop
+- Notes, photos
+- **Expected dates:** if the variety has the farmer's own day counts (see below), the app shows expected flowering / first harvest / end dates next to the actual ones. If no day counts, only actual dates are shown.
+- **Plant stage is automatic** (nursery → vegetative → flowering → harvesting → ended), from the batch dates and milestones.
 
-### 💧 Water
-- Date and time
-- Method: drip / sprinkler / manual / hose
-- Duration (minutes) or volume (L)
-- Rained today? (Y/N, amount if known)
+### 🌱 Variety (saved list, keyed in by the farmer)
+- Name (e.g. "Kulai 461")
+- Optional day counts from his experience: sow → transplant, transplant → flowering, transplant → first harvest, harvest season length
 - Notes
 
+### 🧪 Pesticide / spray
+- Date and time (default: now; "pagi tadi" / "semalam" (this morning / yesterday) are understood)
+- Product (from the product list or new): type, active ingredient
+- Dosage per tank + tank size (e.g. 20 ml per 16 L), number of tanks, total used
+- Target pest / disease / reason
+- Weather (sunny / cloudy / hot / windy / rain after spray)
+- Pre-harvest interval (*tempoh selamat*) from the product → earliest safe harvest date
+- Batch (auto when only one batch is active; asked when several are)
+- Linked problem (optional)
+- Photos, notes
+
+### 🪣 Tank mix (AB) — replaces Baja + Water
+One entry each time a **new big tank** is mixed. EC and pH are measured only at mixing time.
+- Date and time
+- A amount + B amount (with unit, e.g. 2 L each)
+- Water volume in the tank (L)
+- **EC** (mS/cm) and **pH** readings
+- Extra fertilizer added to the tank (optional, one or more lines: product + amount, e.g. Calcium Nitrate 2 kg)
+- Batch(es) it feeds
+- Linked problem (optional)
+- Photos, notes
+
+### 🌱 Other baja
+For fertilizer **not** given through the drip tank (foliar spray, tabur manure, etc.). Products are keyed in by the farmer.
+- Date and time
+- Product + quantity + unit
+- Method: foliar spray / tabur (spread) / siram (poured) / other
+- Batch, linked problem (optional)
+- Photos, notes
+
 ### ⚠️ Problem
-- Date found
+- Date found, batch
 - Title (short, e.g. "Daun kerinting" (curled leaves))
 - Symptoms (free text + tags)
 - Affected part: leaf / stem / root / flower / fruit / whole plant
 - Severity: low / medium / high
 - Suspected cause (pest / disease / nutrient / water / weather / unknown)
 - Photos
-- **Actions:** links to spray/baja entries + free-text actions ("buang daun sakit" — removed the sick leaves)
+- **Actions:** links to spray / tank mix / other baja entries + free-text actions ("buang daun sakit" — removed the sick leaves)
 - **Follow-ups:** dated notes + photos
 - **Outcome:** solved / partly / not solved, date resolved, lesson learned
 - Status: open / resolved
+
+### 📦 Product (keyed in by the farmer, no prices)
+- Name, category (pesticide / fertilizer), type, active ingredient or NPK, unit
+- Waiting period before harvest (*tempoh selamat*, pesticides)
+- Notes
 
 ---
 
@@ -213,18 +237,43 @@ create table users (
   created_at    timestamptz default now()
 );
 
--- Reusable product list (pesticides + fertilizers), powers autocomplete and cost
+-- Reusable product list (pesticides + fertilizers), keyed in by the farmer. No prices.
 create table products (
   id                 uuid primary key default gen_random_uuid(),
-  name               text not null,
+  name               text not null unique,
   category           text not null,        -- pesticide | fertilizer
-  subtype            text,                 -- insecticide, fungicide, granular, foliar...
+  subtype            text,                 -- insecticide, fungicide, AB, foliar, granular...
   active_ingredient  text,
   npk                text,                 -- '15-15-15'
   unit               text,                 -- ml, L, g, kg, karung
-  pack_size          numeric,
-  pack_price_rm      numeric,
-  phi_days           int,                  -- pre-harvest interval
+  phi_days           int,                  -- pre-harvest interval (pesticides)
+  notes              text,
+  created_at         timestamptz default now()
+);
+
+-- Chili varieties with the farmer's own day counts (all optional)
+create table varieties (
+  id                          uuid primary key default gen_random_uuid(),
+  name                        text not null unique,
+  days_sow_to_transplant      int,
+  days_transplant_to_flower   int,
+  days_transplant_to_harvest  int,
+  harvest_season_days         int,
+  notes                       text
+);
+
+-- Planting batches (musim tanam); several can be active at once
+create table batches (
+  id                 uuid primary key default gen_random_uuid(),
+  name               text not null,
+  variety_id         uuid references varieties(id),
+  sown_on            date,
+  seeds_count        int,
+  transplanted_on    date,
+  polybags_count     int,
+  first_flower_on    date,                 -- actual milestones, tapped when they happen
+  first_harvest_on   date,
+  ended_on           date,                 -- null = still active
   notes              text,
   created_at         timestamptz default now()
 );
@@ -235,10 +284,10 @@ create table plots (
   name  text not null
 );
 
--- One row per logged activity (spray / baja / water)
+-- One row per logged activity (spray / tank mix / other baja)
 create table activities (
   id            uuid primary key default gen_random_uuid(),
-  type          text not null,             -- spray | fertilizer | water
+  type          text not null,             -- spray | tank_mix | fertilizer
   occurred_at   timestamptz not null,
   plot_id       uuid references plots(id), -- nullable until plots are used
   problem_id    uuid references problems(id),
@@ -258,27 +307,43 @@ create table spray_details (
   total_qty       numeric,
   target          text,                    -- pest / disease / reason
   weather         text,
-  cost_rm         numeric,
   safe_harvest_on date                     -- occurred_at + phi_days
 );
 
+-- AB tank mix: one row per new big tank
+create table tank_mix_details (
+  activity_id   uuid primary key references activities(id) on delete cascade,
+  a_amount      numeric,
+  b_amount      numeric,
+  ab_unit       text,                      -- L | ml | kg
+  water_l       numeric,
+  ec            numeric,                   -- mS/cm
+  ph            numeric
+);
+
+-- Extra fertilizers added into a tank mix (0..n per tank)
+create table tank_mix_additives (
+  id            uuid primary key default gen_random_uuid(),
+  activity_id   uuid not null references activities(id) on delete cascade,
+  product_id    uuid references products(id),
+  quantity      numeric,
+  unit          text
+);
+
+-- Other baja (not through the drip tank)
 create table fertilizer_details (
   activity_id  uuid primary key references activities(id) on delete cascade,
   product_id   uuid references products(id),
   quantity     numeric,
   unit         text,
-  method       text,                       -- tabur | siram | spray | fertigation
-  plant_stage  text,
-  cost_rm      numeric
+  method       text                        -- foliar | tabur | siram | other
 );
 
-create table water_details (
-  activity_id   uuid primary key references activities(id) on delete cascade,
-  method        text,
-  duration_min  int,
-  volume_l      numeric,
-  rained        boolean,
-  rain_note     text
+-- Which batch(es) an activity was for (a tank mix can feed several)
+create table activity_batches (
+  activity_id  uuid references activities(id) on delete cascade,
+  batch_id     uuid references batches(id) on delete cascade,
+  primary key (activity_id, batch_id)
 );
 
 create table problems (
@@ -294,6 +359,7 @@ create table problems (
   lesson          text,
   found_on        date not null,
   resolved_on     date,
+  batch_id        uuid references batches(id),
   plot_id         uuid references plots(id),
   created_by      uuid references users(id),
   created_at      timestamptz default now(),
@@ -340,7 +406,7 @@ create table drafts (
 );
 ```
 
-> Table order: `problems` must be created before `activities` (foreign key). The migration files will handle the ordering.
+> Table order: `varieties` → `batches` → `problems` → `activities` (foreign keys). The migration files will handle the ordering.
 
 **Row Level Security** is on for every table. The bot uses the service-role key on the server only. The dashboard reads with the logged-in user's session.
 
@@ -375,12 +441,14 @@ Mobile-first, readable on a laptop. Large text and buttons. Labels in English wi
 
 | Page | Contents |
 |---|---|
-| **Home** | Last spray / baja / water ("Spray terakhir: 3 hari lepas" — last spray: 3 days ago), open problems, earliest safe harvest date, this month's spend |
-| **Timeline** | All entries newest first, filter by type / product / date, photo thumbnails |
-| **Calendar** | Month view, coloured dots per activity type |
+| **Home** | Harvest-safety banner, active batch card(s) ("Batch Okt · Day 45 · Berbunga · first harvest in ~34 days"), last spray, last tank mix with EC/pH, open problems, this month (number of sprays, tank mixes, AB litres used) |
+| **Batches** | All batches. Detail: timeline sow → transplant → flower → first harvest → end (expected vs actual), everything done during the batch, problems during the batch |
+| **Timeline** | All entries newest first, filter by type / batch / product / date, photo thumbnails |
+| **Calendar** | Month view, dots per entry type + batch milestones and expected dates |
 | **Problems** | Card grid of problems with photos. Filter open/resolved, search. Detail page: photos, symptoms, action timeline, follow-ups, outcome, lesson |
-| **Products** | Product catalog: price, PHI, usage history, total spent |
-| **Reports** | Spend per month (pesticide vs baja), most-used products, problem frequency |
+| **Products** | Product list (no prices): type, waiting period, usage history |
+| **Varieties** | Saved varieties with the farmer's day counts |
+| **Reports** | EC/pH trend (with problem dates marked), AB + fertilizer used per month (L/kg), pesticide rotation warning (same active ingredient too often in a row), problems summary, batch comparison (days to first harvest, problems per batch) |
 | **Entry detail / edit** | Fix mistakes from the dashboard |
 
 PWA:
@@ -438,13 +506,14 @@ Dashboard first (dad is away), then bot, then AI. The bot can be tested with the
 | Phase | Deliverable | Done when |
 |---|---|---|
 | **1. Dashboard (local data) ✅** | All pages, add/edit/delete entries, problems (updates, close, reopen), products, photo upload (shrunk in browser), CSV export, PWA install. Saved to `data/farm.json` + `data/uploads/` | Every page and form works on phone + laptop |
+| **1b. Match how the farm works** | Planting batches + varieties (expected vs actual timeline, automatic plant stage), AB tank mix entry (A/B, water, EC, pH, extra fertilizers), Other baja entry, remove Baja + Water types, remove all RM (costs, prices, spending charts), new Home cards and Reports (EC/pH trend, usage in L/kg, pesticide rotation, batch comparison), entries linked to batches | Dad's real workflow can be logged end to end |
 | **2. Dashboard + Supabase** | Supabase project, schema migration, swap `src/lib/store.ts` + `src/lib/data.ts` for Supabase queries, photos to Supabase Storage, login + session check in every server action | Dashboard reads/writes the real database |
 | **3. Deploy** | Vercel deploy, env vars, PWA install tested on a phone | Dashboard is live on a URL |
-| **4. Bot: button logging** | Telegram bot, webhook, whitelist, Spray / Baja / Water / Problem via buttons, photos, confirm + save, `/recent`, `/undo` | Admin can log every type from Telegram and see it on the dashboard |
+| **4. Bot: button logging** | Telegram bot, webhook, whitelist, Spray / Tank mix / Other baja / Problem / Batch milestones via buttons, photos, confirm + save, `/recent`, `/undo` | Admin can log every type from Telegram and see it on the dashboard |
 | **5. AI free text + photos** | Claude parsing of mixed English/Malay, relative dates, product matching, photo descriptions | A typed sentence becomes a correct confirmed entry |
 | **6. "Seen before?" search** | Similar-problem lookup in bot + dashboard search | Bot surfaces a past case from a new photo or description |
 | **7. Hand-over** | Dad's Telegram ID whitelisted, dashboard installed on his phone, demo data cleared | Dad logs his first real entry |
-| **Later** | Plots/blocks, reminders, weather auto-fill, voice notes, export to Excel/PDF | — |
+| **Later** | Plots/blocks, reminders, weather auto-fill, voice notes, PDF export | — |
 
 ---
 
@@ -464,6 +533,7 @@ Watch: Supabase free storage is 1 GB. Compressing photos to ~300 KB gives room f
 
 - [ ] Voice notes: needed in v1 or later?
 - [ ] Dashboard login: email magic link OK for dad, or use a "Login with Telegram" button?
-- [ ] Initial product list: collect the current pesticide and baja bottles/bags (name, size, price)
+- [ ] Initial product list: dad keys in his current pesticides, AB brand and other fertilizers (name, type, waiting period)
+- [ ] Initial batch + variety: dad keys in the current batch's sowing and transplant dates
 - [ ] Bot reply language: mostly Malay, mostly English or mixed?
 - [ ] Should old records (notebook, WhatsApp photos) be imported?
