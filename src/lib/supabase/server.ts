@@ -2,12 +2,16 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Acts as the logged-in user, so Row Level Security decides what it can touch.
 export async function createClient() {
+  // Supabase reads the clock to check the session's expiry; with Cache
+  // Components that is only allowed once rendering is request-time.
+  await connection();
   const cookieStore = await cookies();
   return createServerClient(URL, ANON_KEY, {
     cookies: {
