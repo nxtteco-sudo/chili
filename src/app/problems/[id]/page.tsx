@@ -124,12 +124,12 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
               </span>
             </SectionTitle>
             {steps.length === 0 && <p className="text-[15px] text-muted">Nothing done yet. Add an update below.</p>}
-            <ol className="relative space-y-4 border-l border-line pl-5">
+            <ol className="event-timeline problem-timeline">
               {steps.map((s) => (
                 <li key={s.kind === "activity" ? s.activity.id : s.update.id} className="relative">
                   <span
                     className={cn(
-                      "absolute -left-[26px] top-1.5 size-2.5 rounded-full ring-4 ring-surface",
+                      "event-marker",
                       s.kind === "activity"
                         ? ENTRY_META[s.activity.type].dot
                         : s.update.kind === "action"

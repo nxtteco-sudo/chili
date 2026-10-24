@@ -81,14 +81,14 @@ async function BatchDetail({ params }: { params: PageProps<"/batches/[id]">["par
                 )}
               </p>
             )}
-            <ol className="relative space-y-5 border-l border-line pl-6">
+            <ol className="event-timeline milestone-timeline">
               {info.milestones.map((m) => {
                 const isNext = info.next?.key === m.key;
                 return (
                   <li key={m.key} className="relative">
                     <span
                       className={cn(
-                        "absolute -left-[35px] top-0 grid size-[22px] place-items-center rounded-full ring-4 ring-surface",
+                        "event-marker",
                         m.actual ? "bg-accent text-white" : isNext ? "bg-accent-soft text-accent" : "bg-surface-2 text-muted",
                       )}
                     >

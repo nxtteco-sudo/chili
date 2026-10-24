@@ -125,3 +125,53 @@ body { font-size: 14px; }
 @media (max-width: 380px) {
   .app-content fieldset .grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A sticky sidebar owns its scroll area, including on short or zoomed screens. */
+.app-sidebar {
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c3cfba transparent;
+}
+.app-sidebar > * { flex-shrink: 0; }
+
+/* Keep markers in a reserved gutter instead of positioning over the text. */
+.event-timeline {
+  --marker-size: 22px;
+  --marker-offset: 1px;
+  position: relative;
+  display: grid;
+  gap: 24px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.event-timeline::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--marker-size) / 2);
+  top: calc(var(--marker-size) / 2 + var(--marker-offset));
+  bottom: 12px;
+  width: 1px;
+  background: var(--line);
+}
+.event-timeline > li {
+  position: relative;
+  min-width: 0;
+  padding-left: calc(var(--marker-size) + 16px);
+  overflow-wrap: anywhere;
+}
+.event-timeline .event-marker {
+  position: absolute;
+  left: 0;
+  top: var(--marker-offset);
+  display: grid;
+  place-items: center;
+  width: var(--marker-size);
+  height: var(--marker-size);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--surface);
+}
+.event-timeline > li > p + p { margin-top: 4px; line-height: 1.6; }
+.problem-timeline { --marker-size: 10px; --marker-offset: 6px; gap: 20px; }

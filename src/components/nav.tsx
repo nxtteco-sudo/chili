@@ -40,7 +40,7 @@ export function TopBar() { return <Suspense fallback={<TopBarView pathname="" />
 
 function SidebarView({ pathname }: { pathname: string }) {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[226px] shrink-0 flex-col border-r border-line bg-[#fdfefa] px-5 py-7 md:flex lg:w-[244px]">
+    <aside aria-label="Farm sidebar" tabIndex={0} className="app-sidebar sticky top-0 hidden h-dvh w-[226px] shrink-0 flex-col border-r border-line bg-[#fdfefa] px-5 py-7 md:flex lg:w-[244px]">
       <Link href="/" className="mb-9 flex items-center gap-2.5 px-1">
         <span className="grid size-10 place-items-center rounded-[13px] bg-accent text-white"><ChiliIcon className="size-6" /></span>
         <span><span className="block text-[20px] font-semibold tracking-[-.07em]">kebun<span className="font-normal">cili</span><span className="text-spray">.</span></span><span className="mt-0.5 block text-[9px] uppercase tracking-[.22em] text-muted">The farm journal</span></span>
