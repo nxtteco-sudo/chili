@@ -1,41 +1,47 @@
 import { csvResponse } from "@/lib/csv";
-import { getActivities, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { dayKey, formatTime } from "@/lib/dates";
-import { FERT_METHOD_LABEL, STAGE_LABEL, WATER_METHOD_LABEL } from "@/lib/entry-meta";
+import { ENTRY_META, FERT_METHOD_LABEL } from "@/lib/entry-meta";
+import { formatQty } from "@/lib/format";
 
 export async function GET() {
-  const [today, activities, products, problems] = await Promise.all([
+  const [today, activities, products, problems, batches] = await Promise.all([
     getToday(),
     getActivities(),
     getProducts(),
     getProblems(),
+    getBatches(),
   ]);
-  const productOf = (id: string) => products.find((p) => p.id === id);
+  const productName = (id: string) => products.find((p) => p.id === id)?.name;
   const problemTitle = (id?: string) => problems.find((p) => p.id === id)?.title;
+  const batchNames = (ids: string[]) =>
+    ids.map((id) => batches.find((b) => b.batch.id === id)?.batch.name).filter(Boolean).join(", ");
 
+  // Columns: shared → spray → tank mix → other baja → shared tail.
   const rows = [...activities].reverse().map((a) => {
-    const base = [dayKey(a.occurredAt), formatTime(a.occurredAt)];
+    const head = [dayKey(a.occurredAt), formatTime(a.occurredAt), ENTRY_META[a.type].label, batchNames(a.batchIds)];
     const tail = [problemTitle(a.problemId), a.notes, a.rawMessage];
     if (a.type === "spray") {
       const s = a.spray;
-      const p = productOf(s.productId);
-      return [...base, "Spray", p?.name, p?.subtype, s.dosePerTank, s.doseUnit, s.tanks, s.tankSizeL, s.totalQty, "", "", s.target, s.weather, "", "", "", s.costRm, s.safeHarvestOn, ...tail];
+      return [...head, productName(s.productId), s.dosePerTank, s.doseUnit, s.tanks, s.tankSizeL, s.totalQty, s.target, s.weather, s.safeHarvestOn, "", "", "", "", "", "", "", "", "", "", ...tail];
     }
-    if (a.type === "fertilizer") {
-      const f = a.fertilizer;
-      const p = productOf(f.productId);
-      return [...base, "Baja", p?.name, p?.subtype, "", f.unit, "", "", f.quantity, FERT_METHOD_LABEL[f.method], STAGE_LABEL[f.plantStage], "", "", "", "", "", f.costRm, "", ...tail];
+    if (a.type === "tank_mix") {
+      const t = a.tankMix;
+      const extra = t.additives.map((x) => `${productName(x.productId)} ${formatQty(x.quantity, x.unit)}`).join("; ");
+      return [...head, "", "", "", "", "", "", "", "", "", t.aAmount, t.bAmount, t.abUnit, t.waterL, t.ec, t.ph, extra, "", "", "", ...tail];
     }
-    const w = a.water;
-    return [...base, "Water", "", "", "", "", "", "", "", WATER_METHOD_LABEL[w.method], "", "", "", w.durationMin, w.volumeL, w.rained ? "Yes" : "No", "", "", ...tail];
+    const f = a.fertilizer;
+    return [...head, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", productName(f.productId), formatQty(f.quantity, f.unit), FERT_METHOD_LABEL[f.method], ...tail];
   });
 
   return csvResponse(
     `kebun-cili-entries-${today}.csv`,
     [
-      "Date", "Time", "Type", "Product", "Product type", "Dose per tong", "Unit", "Tong", "Tong size (L)",
-      "Total / quantity", "Method", "Plant stage", "Target", "Weather", "Water minutes", "Water litres",
-      "Rained", "Cost (RM)", "Safe to harvest from", "Problem", "Notes", "Original message",
+      "Date", "Time", "Type", "Batch",
+      "Pesticide", "Dose per tong", "Unit", "Tong", "Tong size (L)", "Total used", "Target", "Weather", "Safe to harvest from",
+      "A", "B", "AB unit", "Water (L)", "EC", "pH", "Extra fertilizer in tank",
+      "Other baja", "Quantity", "Method",
+      "Problem", "Notes", "Original message",
     ],
     rows,
   );

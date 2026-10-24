@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sprout } from "lucide-react";
 import { ActivityRow } from "@/components/activity-row";
 import { Card, EmptyState, PageHeader, PageSkeleton, StatusBadge, TypeIcon } from "@/components/ui";
-import { getActivities, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { addDays, addMonths, dayKey, formatFull, formatMonth, monthKey } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 import { cn } from "@/lib/format";
@@ -13,7 +13,7 @@ import type { EntryType } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Calendar" };
 
-const ORDER: EntryType[] = ["water", "spray", "fertilizer", "problem"];
+const ORDER: EntryType[] = ["tank_mix", "spray", "fertilizer", "problem"];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function CalendarPage(props: PageProps<"/calendar">) {
@@ -40,11 +40,23 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
         ? today
         : undefined;
 
-  const [products, activities, problems] = await Promise.all([
+  const [products, activities, problems, batches] = await Promise.all([
     getProducts(),
     getActivities({ month }),
     getProblems(),
+    getBatches(),
   ]);
+
+  // Batch milestones (actual, or expected from the variety's day counts) on their days.
+  type MilestoneMark = { batchId: string; batchName: string; label: string; expected: boolean };
+  const milestones = new Map<string, MilestoneMark[]>();
+  for (const { batch, info } of batches)
+    for (const m of info.milestones) {
+      const date = m.actual ?? m.expected;
+      if (!date || monthKey(date) !== month) continue;
+      const mark = { batchId: batch.id, batchName: batch.name, label: m.label, expected: !m.actual };
+      milestones.set(date, [...(milestones.get(date) ?? []), mark]);
+    }
 
   const types = new Map<string, Set<EntryType>>();
   const mark = (key: string, t: EntryType) => {
@@ -68,12 +80,13 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
   const dayActivities = selected ? activities.filter((a) => dayKey(a.occurredAt) === selected) : [];
   const dayProblems = selected ? monthProblems.filter((p) => p.foundOn === selected) : [];
 
-  const counts = {
-    water: activities.filter((a) => a.type === "water").length,
+  const counts: Record<EntryType, number> = {
+    tank_mix: activities.filter((a) => a.type === "tank_mix").length,
     spray: activities.filter((a) => a.type === "spray").length,
     fertilizer: activities.filter((a) => a.type === "fertilizer").length,
     problem: monthProblems.length,
   };
+  const dayMilestones = selected ? (milestones.get(selected) ?? []) : [];
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -122,6 +135,8 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
                   {ORDER.filter((t) => types.get(key)?.has(t)).map((t) => (
                     <span key={t} className={cn("size-1.5 rounded-full", ENTRY_META[t].dot)} />
                   ))}
+                  {milestones.get(key)?.some((m) => !m.expected) && <span className="size-1.5 rounded-full bg-accent" />}
+                  {milestones.get(key)?.some((m) => m.expected) && <span className="size-1.5 rounded-full ring-1 ring-accent ring-inset" />}
                 </span>
               </Link>
             ) : (
@@ -138,6 +153,14 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
               <span className="tabular text-muted">{counts[t]}</span>
             </li>
           ))}
+          <li className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-accent" />
+            Batch milestone
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full ring-1 ring-accent ring-inset" />
+            Expected
+          </li>
         </ul>
       </Card>
 
@@ -145,10 +168,24 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
         {selected ? (
           <Card>
             <h2 className="border-b border-line px-4 py-3 text-[15px] font-semibold">{formatFull(selected)}</h2>
-            {dayActivities.length + dayProblems.length === 0 ? (
+            {dayActivities.length + dayProblems.length + dayMilestones.length === 0 ? (
               <p className="px-4 py-6 text-[15px] text-muted">Nothing logged this day.</p>
             ) : (
               <div className="divide-y divide-line">
+                {dayMilestones.map((m, i) => (
+                  <Link key={i} href={`/batches/${m.batchId}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+                      <Sprout className="size-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-medium">
+                        {m.expected ? "Expected: " : ""}
+                        {m.label}
+                      </span>
+                      <span className="block truncate text-sm text-ink-2">{m.batchName}</span>
+                    </span>
+                  </Link>
+                ))}
                 {dayProblems.map((p) => (
                   <Link
                     key={p.id}

@@ -8,7 +8,7 @@ import { FormError, FormField, Input, Section, Segmented, Select, SubmitButton, 
 
 const SUBTYPES = {
   pesticide: ["Insecticide", "Fungicide", "Herbicide", "Miticide", "Fungicide / bactericide", "Insecticide (organic)"],
-  fertilizer: ["Granular", "Foliar", "Organic", "Fertigation"],
+  fertilizer: ["Fertigation", "Foliar", "Organic", "Granular"],
 };
 
 export function ProductForm({
@@ -67,12 +67,9 @@ export function ProductForm({
         )}
       </Section>
 
-      <Section title="Pack & price">
+      <Section title="Unit & safety">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <FormField label="Pack size" error={err("packSize")}>
-            <Input name="packSize" inputMode="decimal" defaultValue={product?.packSize} error={err("packSize")} />
-          </FormField>
-          <FormField label="Unit" error={err("unit")}>
+          <FormField label="Measured in" hint="The unit you use when logging it" error={err("unit")}>
             <Select name="unit" defaultValue={product?.unit ?? (category === "pesticide" ? "ml" : "kg")} error={err("unit")}>
               {["ml", "L", "g", "kg", "karung", "pcs"].map((u) => (
                 <option key={u} value={u}>
@@ -80,9 +77,6 @@ export function ProductForm({
                 </option>
               ))}
             </Select>
-          </FormField>
-          <FormField label="Price (RM)" error={err("packPriceRm")}>
-            <Input name="packPriceRm" inputMode="decimal" defaultValue={product?.packPriceRm} error={err("packPriceRm")} />
           </FormField>
         </div>
         {category === "pesticide" && (

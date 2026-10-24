@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, ChevronRight, Leaf, ShieldCheck, ShieldAlert, Sprout } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, ChevronRight, Leaf, Plus, ShieldCheck, ShieldAlert, Sprout } from "lucide-react";
 import { ActivityRow } from "@/components/activity-row";
+import { BatchCard } from "@/components/batch-card";
 import { GardenArt } from "@/components/garden-art";
-import { StackedColumns } from "@/components/charts";
+import { LineChart } from "@/components/line-chart";
 import { Card, PageSkeleton, SectionTitle, StatusBadge, TextLink, TypeIcon } from "@/components/ui";
-import { getActivities, getHarvestSafety, getLastByType, getMonthlySpend, getProblems, getProducts } from "@/lib/data";
-import { addDays, addMonths, dayKey, diffDays, formatFull, formatMonthShort, formatWeekday, monthKey, relativeDay } from "@/lib/dates";
+import { getActiveBatches, getActivities, getEcPhSeries, getHarvestSafety, getLastByType, getMonthlyUsage, getProblems, getProducts } from "@/lib/data";
+import { addDays, dayKey, diffDays, formatFull, formatWeekday, monthKey, relativeDay } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
 import { ENTRY_META } from "@/lib/entry-meta";
-import { cn, formatRmWhole } from "@/lib/format";
+import { cn, formatQty } from "@/lib/format";
 import type { Activity, ActivityType, Product } from "@/lib/types";
 
 export default function HomePage() { return <Suspense fallback={<PageSkeleton />}><Home /></Suspense>; }
@@ -19,12 +20,9 @@ async function Home() {
     getProducts(), getLastByType(), getHarvestSafety(), getProblems({ status: "open" }), getActivities({ sinceDays: 6 }),
   ]);
   const { today } = safety;
-  const months = Array.from({ length: 6 }, (_, i) => addMonths(monthKey(today), i - 5));
-  const spending = await getMonthlySpend(months);
-  const spend = spending[5];
-  const total = spend.pesticide + spend.fertilizer;
-  const previous = spending[4].pesticide + spending[4].fertilizer;
-  const change = previous ? Math.round(((total - previous) / previous) * 100) : undefined;
+  const [[month], batches, ecSeries] = await Promise.all([getMonthlyUsage([monthKey(today)]), getActiveBatches(), getEcPhSeries(60)]);
+  const abThisMonth = Object.entries(month.abByUnit).map(([unit, n]) => formatQty(n, unit)).join(" + ") || "none";
+  const problemEvents = openProblems.map((p) => ({ date: p.foundOn, label: p.title }));
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
   const counts = days.map(day => recent.filter(a => dayKey(a.occurredAt) === day).length);
   const max = Math.max(...counts, 1);
@@ -47,18 +45,33 @@ async function Home() {
     </section>
 
     <div className="dashboard-metrics grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {(["spray", "fertilizer", "water"] as const).map(type => <LastDoneTile key={type} type={type} activity={last[type]} today={today} products={products} />)}
+      {(["spray", "tank_mix", "fertilizer"] as const).map(type => <LastDoneTile key={type} type={type} activity={last[type]} today={today} products={products} />)}
       <Link href="/reports" className="metric-card rounded-2xl border border-line bg-white p-5">
-        <div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">Spent this month</span><span className="grid size-8 place-items-center rounded-full bg-[#f4f1e6] text-[#9d9166]"><span className="text-[10px] font-semibold">RM</span></span></div>
-        <p className="mt-3 text-[29px] font-medium leading-none tracking-[-.06em]">{formatRmWhole(total)}</p>
-        <p className="mt-3 flex items-center gap-1 text-[10px] text-muted">{change !== undefined ? <><span className={cn("inline-flex items-center", change <= 0 ? "text-good-ink" : "text-warn-ink")}>{change <= 0 ? <ArrowDownRight className="size-3" /> : <ArrowUpRight className="size-3" />}{Math.abs(change)}%</span> vs last month</> : "Pesticide & fertilizer"}</p>
+        <div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">This month</span><span className="grid size-8 place-items-center rounded-full bg-[#f4f1e6] text-[#9d9166]"><CalendarDays className="size-4" /></span></div>
+        <p className="mt-3 text-[27px] font-medium leading-none tracking-[-.05em]">{month.sprays} <span className="text-[15px] tracking-normal text-ink-2">sprays</span> · {month.tankMixes} <span className="text-[15px] tracking-normal text-ink-2">tanks</span></p>
+        <p className="mt-3 truncate text-[10px] text-muted">AB used: {abThisMonth}</p>
       </Link>
     </div>
 
     <HarvestNotice safety={safety} products={products} />
 
-    <div className="dashboard-analysis grid gap-5 xl:grid-cols-[1.65fr_1fr]">
-      <StackedColumns title="A season in numbers" subtitle="Monthly spending · RM" series={[{ key: "pesticide", label: "Pesticide", color: "#c8936b" }, { key: "fertilizer", label: "Baja", color: "#91a67a" }]} data={spending.map(m => ({ label: formatMonthShort(m.month), values: { pesticide: m.pesticide, fertilizer: m.fertilizer } }))} />
+    <section aria-labelledby="growing-now">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 id="growing-now" className="text-base font-semibold tracking-[-.02em] md:text-[15px]">Growing now</h2>
+        <div className="flex items-center gap-4">
+          <TextLink href="/batches">All batches <ArrowRight className="ml-1 inline size-3" /></TextLink>
+          <Link href="/batches/new" className="inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-accent"><Plus className="size-4" /> New batch</Link>
+        </div>
+      </div>
+      {batches.length === 0 ? (
+        <Link href="/batches/new" className="block rounded-2xl border border-dashed border-line bg-white p-6 text-center text-sm text-ink-2 hover:border-accent/40">No batch growing yet. <span className="font-medium text-accent">Add the first planting batch.</span></Link>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{batches.map(b => <BatchCard key={b.batch.id} view={b} today={today} />)}</div>
+      )}
+    </section>
+
+    <div className="dashboard-analysis grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
+      <LineChart title="Tank EC" subtitle="Each new AB tank, last 60 days · tap a point to open it" unit="mS/cm" color="var(--water)" points={ecSeries.flatMap(s => s.ec !== undefined ? [{ date: s.date, value: s.ec, href: `/entries/${s.activityId}` }] : [])} events={problemEvents} />
       <Card className="flex flex-col p-5 md:p-6">
         <SectionTitle action={<Link href="/calendar" aria-label="View activity calendar" className="text-muted hover:text-accent"><ArrowUpRight className="size-4" /></Link>}>A week on the farm</SectionTitle>
         <p className="text-xs text-muted">Every bit of care, recorded.</p>
@@ -69,10 +82,10 @@ async function Home() {
       </Card>
     </div>
 
-    <div className="dashboard-recent grid items-start gap-5 xl:grid-cols-[1.65fr_1fr]">
+    <div className="dashboard-recent grid grid-cols-1 items-start gap-5 xl:grid-cols-[1.65fr_1fr]">
       <Card>
         <div className="px-5 pb-1 pt-5 md:px-6"><SectionTitle action={<TextLink href="/timeline">View journal <ArrowRight className="ml-1 inline size-3" /></TextLink>}>Recent activity</SectionTitle><p className="mb-4 text-[11px] text-muted">The latest entries from your farm.</p></div>
-        <div className="flex border-y border-line bg-[#fafbf7] px-5 py-2 text-[9px] uppercase tracking-[.12em] text-muted md:px-6"><span className="flex-1">Activity & details</span><span>When / cost</span></div>
+        <div className="flex border-y border-line bg-[#fafbf7] px-5 py-2 text-[9px] uppercase tracking-[.12em] text-muted md:px-6"><span className="flex-1">Activity & details</span><span>When</span></div>
         <div className="divide-y divide-line">{recent.length ? recent.slice(0, 5).map(a => <ActivityRow key={a.id} activity={a} products={products} dateLabel={relativeDay(dayKey(a.occurredAt), today)} />) : <p className="p-6 text-sm text-muted">Your week starts with a single entry. <Link href="/log" className="text-accent underline">Add one now.</Link></p>}</div>
         <Link href="/timeline" className="flex items-center justify-center gap-2 border-t border-line py-3.5 text-[10px] font-medium text-accent">Explore all activity <ArrowRight className="size-3" /></Link>
       </Card>
@@ -94,6 +107,9 @@ function HarvestNotice({ safety: { blocking, today }, products }: { safety: Awai
   return blocking ? <Link href={`/entries/${blocking.id}`} className={cls}>{content}</Link> : <div className={cls}>{content}</div>;
 }
 function LastDoneTile({ type, activity, today, products }: { type: ActivityType; activity?: Activity; today: string; products: Product[] }) {
-  const inner = <><div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">Last {ENTRY_META[type].label.toLowerCase()}</span><TypeIcon type={type} size="sm" /></div><p className="mt-3 text-[27px] font-medium leading-none tracking-[-.05em]">{activity ? relativeDay(dayKey(activity.occurredAt), today) : "No entries"}</p><p className="mt-3 truncate text-[10px] text-muted">{activity ? describeActivity(activity, products).title : "A fresh start for your farm"}</p></>;
+  // For a tank mix the readings matter more than the recipe.
+  const sub = !activity ? "Nothing logged yet" : activity.type === "tank_mix" ? [activity.tankMix.ec !== undefined && `EC ${activity.tankMix.ec}`, activity.tankMix.ph !== undefined && `pH ${activity.tankMix.ph}`].filter(Boolean).join(" · ") || "No readings" : describeActivity(activity, products).title;
+  const inner = <><div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">Last {ENTRY_META[type].label.toLowerCase()}</span><TypeIcon type={type} size="sm" /></div><p className="mt-3 text-[27px] font-medium leading-none tracking-[-.05em]">{activity ? relativeDay(dayKey(activity.occurredAt), today) : "No entries"}</p><p className="mt-3 truncate text-[10px] text-muted">{sub}</p></>;
   return activity ? <Link href={`/entries/${activity.id}`} className="metric-card rounded-2xl border border-line bg-white p-5">{inner}</Link> : <div className="metric-card rounded-2xl border border-line bg-white p-5">{inner}</div>;
 }
+

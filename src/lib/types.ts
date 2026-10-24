@@ -1,7 +1,11 @@
-// Shapes mirror the planned Supabase schema (PROJECT.md §7) so the demo
+// Shapes mirror the planned Supabase schema (PROJECT.md §7) so the local
 // data layer can be swapped for real queries without touching the UI.
 
-export type ActivityType = "spray" | "fertilizer" | "water";
+// How the farm works: polybags on drip, AB fertilizer mixed in a big tank
+// (EC/pH measured at mixing), only pesticides are sprayed. No money here;
+// costs and harvest kg live in the separate accounts dashboard.
+
+export type ActivityType = "spray" | "tank_mix" | "fertilizer";
 export type EntryType = ActivityType | "problem";
 
 export type ProductCategory = "pesticide" | "fertilizer";
@@ -14,10 +18,35 @@ export type Product = {
   activeIngredient?: string;
   npk?: string;
   unit: string;
-  packSize: number;
-  packPriceRm: number;
   phiDays?: number;
   notes?: string;
+};
+
+// Day counts are the farmer's own experience; all optional.
+export type Variety = {
+  id: string;
+  name: string;
+  daysSowToTransplant?: number;
+  daysTransplantToFlower?: number;
+  daysTransplantToHarvest?: number;
+  harvestSeasonDays?: number;
+  notes?: string;
+};
+
+export type Batch = {
+  id: string;
+  name: string;
+  varietyId?: string;
+  sownOn?: string; // YYYY-MM-DD
+  seedsCount?: number;
+  transplantedOn?: string;
+  polybagsCount?: number;
+  // Actual milestones, recorded when they happen.
+  firstFlowerOn?: string;
+  firstHarvestOn?: string;
+  endedOn?: string;
+  notes?: string;
+  photos: Photo[];
 };
 
 export type Photo = {
@@ -37,37 +66,35 @@ export type SprayDetails = {
   totalQty: number;
   target: string;
   weather: string;
-  costRm: number;
   safeHarvestOn: string; // YYYY-MM-DD
 };
 
+export type TankAdditive = { productId: string; quantity: number; unit: string };
+
+export type TankMixDetails = {
+  aAmount: number;
+  bAmount: number;
+  abUnit: "L" | "ml" | "kg" | "g";
+  waterL: number;
+  ec?: number; // mS/cm
+  ph?: number;
+  additives: TankAdditive[];
+};
+
+// "Other baja": fertilizer not given through the drip tank.
 export type FertilizerDetails = {
   productId: string;
   quantity: number;
   unit: string;
-  method: "tabur" | "siram" | "spray" | "fertigation";
-  plantStage: PlantStage;
-  costRm: number;
+  method: "foliar" | "tabur" | "siram" | "other";
 };
 
-export type WaterDetails = {
-  method: "drip" | "sprinkler" | "manual" | "hose";
-  durationMin?: number;
-  volumeL?: number;
-  rained: boolean;
-  rainNote?: string;
-};
-
-export type PlantStage =
-  | "nursery"
-  | "vegetative"
-  | "flowering"
-  | "fruiting"
-  | "harvest";
+export type PlantStage = "planned" | "nursery" | "vegetative" | "flowering" | "harvest" | "ended";
 
 type ActivityBase = {
   id: string;
   occurredAt: string; // ISO with +08:00 offset
+  batchIds: string[];
   problemId?: string;
   notes?: string;
   rawMessage?: string;
@@ -76,8 +103,8 @@ type ActivityBase = {
 
 export type Activity =
   | (ActivityBase & { type: "spray"; spray: SprayDetails })
-  | (ActivityBase & { type: "fertilizer"; fertilizer: FertilizerDetails })
-  | (ActivityBase & { type: "water"; water: WaterDetails });
+  | (ActivityBase & { type: "tank_mix"; tankMix: TankMixDetails })
+  | (ActivityBase & { type: "fertilizer"; fertilizer: FertilizerDetails });
 
 export type ProblemUpdate = {
   id: string;
@@ -103,6 +130,7 @@ export type Problem = {
   lesson?: string;
   foundOn: string; // YYYY-MM-DD
   resolvedOn?: string;
+  batchId?: string;
   photos: Photo[];
   updates: ProblemUpdate[];
 };
@@ -110,6 +138,8 @@ export type Problem = {
 export type FarmData = {
   today: string; // YYYY-MM-DD in farm timezone
   products: Product[];
+  varieties: Variety[];
+  batches: Batch[];
   activities: Activity[]; // newest first
   problems: Problem[]; // newest first
 };

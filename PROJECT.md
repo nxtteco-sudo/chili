@@ -2,7 +2,7 @@
 
 A farm logbook for a chili farm. The farmer logs everything (planting batches, pesticide sprays, AB fertilizer tank mixes, other baja, problems and how they were solved) by messaging a **Telegram bot** in mixed English/Malay. Every entry appears on a **dashboard** (installable PWA) that works on phone and laptop. When a problem comes back, the farmer can ask the bot or search the dashboard to see what was done the first time and whether it worked.
 
-> Status: **Dashboard v1 finished** (2026-10-24) on a local file store (`data/`). **Next: Phase 1b, update the dashboard to match how the farm works** (§6 below: planting batches, AB tank mix, no RM), then Phase 2 (Supabase).
+> Status: **Phase 1b done** (2026-10-24): dashboard matches how the farm works (planting batches + varieties, AB tank mix with EC/pH, other baja, no RM), on a local file store (`data/`). **Next: Phase 2, connect Supabase.**
 
 ---
 
@@ -506,7 +506,7 @@ Dashboard first (dad is away), then bot, then AI. The bot can be tested with the
 | Phase | Deliverable | Done when |
 |---|---|---|
 | **1. Dashboard (local data) ✅** | All pages, add/edit/delete entries, problems (updates, close, reopen), products, photo upload (shrunk in browser), CSV export, PWA install. Saved to `data/farm.json` + `data/uploads/` | Every page and form works on phone + laptop |
-| **1b. Match how the farm works** | Planting batches + varieties (expected vs actual timeline, automatic plant stage), AB tank mix entry (A/B, water, EC, pH, extra fertilizers), Other baja entry, remove Baja + Water types, remove all RM (costs, prices, spending charts), new Home cards and Reports (EC/pH trend, usage in L/kg, pesticide rotation, batch comparison), entries linked to batches | Dad's real workflow can be logged end to end |
+| **1b. Match how the farm works ✅** | Planting batches + varieties (expected vs actual timeline, automatic plant stage), AB tank mix entry (A/B, water, EC, pH, extra fertilizers), Other baja entry, remove Baja + Water types, remove all RM (costs, prices, spending charts), new Home cards and Reports (EC/pH trend, usage in L/kg, pesticide rotation, batch comparison), entries linked to batches | Dad's real workflow can be logged end to end |
 | **2. Dashboard + Supabase** | Supabase project, schema migration, swap `src/lib/store.ts` + `src/lib/data.ts` for Supabase queries, photos to Supabase Storage, login + session check in every server action | Dashboard reads/writes the real database |
 | **3. Deploy** | Vercel deploy, env vars, PWA install tested on a phone | Dashboard is live on a URL |
 | **4. Bot: button logging** | Telegram bot, webhook, whitelist, Spray / Tank mix / Other baja / Problem / Batch milestones via buttons, photos, confirm + save, `/recent`, `/undo` | Admin can log every type from Telegram and see it on the dashboard |

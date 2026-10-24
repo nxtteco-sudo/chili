@@ -3,8 +3,9 @@
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/format";
 
-const rm = (n: number) =>
-  `RM ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const plain = (n: number) => n.toLocaleString("en-MY", { maximumFractionDigits: 1 });
+// Charts take a unit string (not a formatter) so server pages can pass it.
+const withUnit = (unit?: string) => (n: number) => (unit ? `${plain(n)} ${unit}` : plain(n));
 
 function niceMax(value: number) {
   if (value <= 0) return 100;
@@ -68,12 +69,15 @@ export function StackedColumns({
   subtitle,
   series,
   data,
+  unit,
 }: {
   title: string;
   subtitle?: string;
   series: Series[];
   data: { label: string; values: Record<string, number> }[];
+  unit?: string;
 }) {
+  const format = withUnit(unit);
   const [active, setActive] = useState<number | null>(null);
   const totals = data.map((d) => series.reduce((s, x) => s + (d.values[x.key] ?? 0), 0));
   const max = niceMax(Math.max(...totals));
@@ -100,9 +104,9 @@ export function StackedColumns({
               <tr key={d.label} className="border-b border-line last:border-0">
                 <td className="py-2">{d.label}</td>
                 {series.map((s) => (
-                  <td key={s.key} className="py-2 text-right">{rm(d.values[s.key] ?? 0)}</td>
+                  <td key={s.key} className="py-2 text-right">{format(d.values[s.key] ?? 0)}</td>
                 ))}
-                <td className="py-2 text-right font-medium">{rm(totals[i])}</td>
+                <td className="py-2 text-right font-medium">{format(totals[i])}</td>
               </tr>
             ))}
           </tbody>
@@ -140,12 +144,12 @@ export function StackedColumns({
                 onFocus={() => setActive(i)}
                 onBlur={() => setActive(null)}
                 onClick={() => setActive((v) => (v === i ? null : i))}
-                aria-label={`${d.label}: ${rm(totals[i])}`}
+                aria-label={`${d.label}: ${format(totals[i])}`}
               >
                 {active === i && <div className="absolute -top-6 bottom-0 left-1/2 w-10 -translate-x-1/2 rounded-md bg-ink/5" />}
                 <div className="relative w-7 sm:w-9" style={{ height: `${(totals[i] / max) * 100}%` }}>
                   <span className="tabular absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap text-xs text-ink-2">
-                    {Math.round(totals[i]).toLocaleString("en-MY")}
+                    {format(totals[i])}
                   </span>
                   <div className="flex h-full flex-col-reverse gap-[2px]">
                     {series.map((s, si) => {
@@ -174,12 +178,14 @@ export function StackedColumns({
                       <p key={s.key} className="tabular flex items-center gap-1.5 text-ink-2">
                         <span className="size-2 rounded-sm" style={{ background: s.color }} />
                         {s.label}
-                        <span className="ml-auto text-ink">{rm(d.values[s.key] ?? 0)}</span>
+                        <span className="ml-auto text-ink">{format(d.values[s.key] ?? 0)}</span>
                       </p>
                     ))}
-                    <p className="tabular mt-1 flex border-t border-line pt-1 font-medium">
-                      Total <span className="ml-auto">{rm(totals[i])}</span>
-                    </p>
+                    {series.length > 1 && (
+                      <p className="tabular mt-1 flex border-t border-line pt-1 font-medium">
+                        Total <span className="ml-auto">{format(totals[i])}</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </button>
@@ -201,12 +207,17 @@ export function HorizontalBars({
   subtitle,
   series,
   data,
+  unit,
+  valueLabel = "Value",
 }: {
   title: string;
   subtitle?: string;
   series: Series[];
   data: { label: string; value: number; seriesKey: string; note?: string }[];
+  unit?: string;
+  valueLabel?: string;
 }) {
+  const format = withUnit(unit);
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(...data.map((d) => d.value), 1);
   const colorOf = (k: string) => series.find((s) => s.key === k)?.color;
@@ -221,7 +232,7 @@ export function HorizontalBars({
             <tr className="border-b border-line text-left text-muted">
               <th className="py-2 font-normal">Product</th>
               <th className="py-2 font-normal">Type</th>
-              <th className="py-2 text-right font-normal">Spent</th>
+              <th className="py-2 text-right font-normal">{valueLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -229,7 +240,7 @@ export function HorizontalBars({
               <tr key={d.label} className="border-b border-line last:border-0">
                 <td className="py-2">{d.label}</td>
                 <td className="py-2 text-ink-2">{series.find((s) => s.key === d.seriesKey)?.label}</td>
-                <td className="py-2 text-right">{rm(d.value)}</td>
+                <td className="py-2 text-right">{format(d.value)}</td>
               </tr>
             ))}
           </tbody>
@@ -255,7 +266,7 @@ export function HorizontalBars({
                   style={{ width: `${(d.value / max) * 100}%`, background: colorOf(d.seriesKey) }}
                 />
               </div>
-              <span className="tabular w-24 shrink-0 text-right text-sm text-ink-2">{rm(d.value)}</span>
+              <span className="tabular w-24 shrink-0 text-right text-sm text-ink-2">{format(d.value)}</span>
             </div>
           </li>
         ))}

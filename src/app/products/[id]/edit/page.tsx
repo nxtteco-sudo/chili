@@ -28,7 +28,7 @@ async function EditProduct({ params }: { params: PageProps<"/products/[id]/edit"
     <>
       <PageHeader
         title="Edit product"
-        subtitle={used ? `Used in ${used} entries. Price changes only affect new entries.` : undefined}
+        subtitle={used ? `Used in ${used} entries. Waiting-period changes only affect new sprays.` : undefined}
         action={
           used === 0 && (
             <DeleteButton action={deleteProduct} fields={{ id }} confirmText={`Delete ${product.name}?`} />

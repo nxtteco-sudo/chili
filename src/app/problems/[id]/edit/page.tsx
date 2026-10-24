@@ -5,7 +5,7 @@ import { deleteProblem } from "@/app/actions";
 import { DeleteButton } from "@/components/form-ui";
 import { ProblemForm } from "@/components/problem-forms";
 import { PageHeader, PageSkeleton } from "@/components/ui";
-import { getProblem, getToday } from "@/lib/data";
+import { getBatches, getProblem, getToday } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Edit problem" };
 
@@ -31,11 +31,18 @@ async function EditProblem({ params }: { params: PageProps<"/problems/[id]/edit"
           <DeleteButton
             action={deleteProblem}
             fields={{ id }}
-            confirmText="Delete this problem and all its updates? Sprays and baja linked to it are kept. This can't be undone."
+            confirmText="Delete this problem and all its updates? Sprays, tank mixes and baja linked to it are kept. This can't be undone."
           />
         }
       />
-      <ProblemForm problem={problem} today={await getToday()} cancelHref={`/problems/${id}`} />
+      <ProblemForm
+        problem={problem}
+        today={await getToday()}
+        batches={(await getBatches())
+          .filter((b) => b.active || b.batch.id === problem.batchId)
+          .map((b) => ({ id: b.batch.id, name: b.batch.name }))}
+        cancelHref={`/problems/${id}`}
+      />
     </>
   );
 }

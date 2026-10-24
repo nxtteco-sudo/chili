@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ProblemForm } from "@/components/problem-forms";
 import { PageHeader, PageSkeleton } from "@/components/ui";
-import { getToday } from "@/lib/data";
+import { getActiveBatches, getToday } from "@/lib/data";
 
 export const metadata: Metadata = { title: "New problem" };
 
@@ -18,5 +18,16 @@ export default function NewProblemPage() {
 }
 
 async function NewProblem() {
-  return <ProblemForm today={await getToday()} cancelHref="/problems" />;
+  const [today, batches] = await Promise.all([getToday(), getActiveBatches()]);
+  // With one active batch it is almost certainly the one; with several, let him pick.
+  const options = batches.map((b) => ({ id: b.batch.id, name: b.batch.name }));
+  const growing = batches.filter((b) => b.info.stage !== "nursery");
+  return (
+    <ProblemForm
+      today={today}
+      batches={options}
+      defaultBatchId={growing.length === 1 ? growing[0].batch.id : undefined}
+      cancelHref="/problems"
+    />
+  );
 }

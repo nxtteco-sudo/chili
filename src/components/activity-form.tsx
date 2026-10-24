@@ -1,25 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Plus } from "lucide-react";
+import { useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 import { saveActivity } from "@/app/actions";
-import { FERT_METHOD_LABEL, STAGE_LABEL, WATER_METHOD_LABEL } from "@/lib/entry-meta";
-import { formatQty, formatRm } from "@/lib/format";
-import type { Activity, ActivityType, PlantStage, Product } from "@/lib/types";
+import { FERT_METHOD_LABEL } from "@/lib/entry-meta";
+import { formatQty } from "@/lib/format";
+import type { Activity, ActivityType, FertilizerDetails, Product, TankMixDetails } from "@/lib/types";
 import { FormError, FormField, Input, Section, Segmented, Select, SubmitButton, Textarea, useFormAction } from "./form-ui";
 import { PhotoPicker } from "./photo-picker";
 
 const WEATHER = ["Sunny", "Cloudy", "Hot", "Windy", "Rain after spray"];
 
 export type ProblemOption = { id: string; title: string; status: "open" | "resolved" };
+export type BatchOption = { id: string; name: string; stage: string };
 
 export function ActivityForm({
   type,
   activity,
   products,
   problems,
+  batches,
   defaults,
+  lastTankMix,
   cancelHref,
   returnHref,
 }: {
@@ -27,7 +30,9 @@ export function ActivityForm({
   activity?: Activity;
   products: Product[];
   problems: ProblemOption[];
-  defaults: { date: string; time: string; plantStage: PlantStage; productId?: string; problemId?: string };
+  batches: BatchOption[];
+  defaults: { date: string; time: string; productId?: string; problemId?: string; batchIds: string[] };
+  lastTankMix?: TankMixDetails;
   cancelHref: string;
   returnHref: string;
 }) {
@@ -61,33 +66,39 @@ export function ActivityForm({
           returnHref={returnHref}
         />
       )}
-      {type === "fertilizer" && (
-        <FertilizerFields
-          activity={activity?.type === "fertilizer" ? activity : undefined}
+      {type === "tank_mix" && (
+        <TankMixFields
+          details={activity?.type === "tank_mix" ? activity.tankMix : undefined}
+          last={lastTankMix}
           products={products.filter((p) => p.category === "fertilizer")}
-          defaultProductId={defaults.productId}
-          defaultStage={defaults.plantStage}
           err={err}
           returnHref={returnHref}
         />
       )}
-      {type === "water" && <WaterFields activity={activity?.type === "water" ? activity : undefined} err={err} />}
-
-      {type !== "water" && (
-        <Section title="For a problem?">
-          <FormField label="Linked problem" hint="Link it if this was done to fix a problem." error={err("problemId")}>
-            <Select name="problemId" defaultValue={activity?.problemId ?? defaults.problemId ?? ""} error={err("problemId")}>
-              <option value="">Not for a problem (routine)</option>
-              {problems.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                  {p.status === "resolved" ? " (closed)" : ""}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-        </Section>
+      {type === "fertilizer" && (
+        <OtherBajaFields
+          details={activity?.type === "fertilizer" ? activity.fertilizer : undefined}
+          products={products.filter((p) => p.category === "fertilizer")}
+          defaultProductId={defaults.productId}
+          err={err}
+          returnHref={returnHref}
+        />
       )}
+
+      <Section title="Which batch?">
+        <BatchPicker batches={batches} selected={activity?.batchIds ?? defaults.batchIds} error={err("batchIds")} />
+        <FormField label="For a problem?" hint="Link it if this was done to fix a problem." error={err("problemId")}>
+          <Select name="problemId" defaultValue={activity?.problemId ?? defaults.problemId ?? ""} error={err("problemId")}>
+            <option value="">Not for a problem (routine)</option>
+            {problems.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+                {p.status === "resolved" ? " (closed)" : ""}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+      </Section>
 
       <Section title="Photos & notes">
         <PhotoPicker existing={activity?.photos} error={err("photos")} />
@@ -106,6 +117,35 @@ export function ActivityForm({
   );
 }
 
+function BatchPicker({ batches, selected, error }: { batches: BatchOption[]; selected: string[]; error?: string }) {
+  if (batches.length === 0)
+    return (
+      <p className="rounded-xl bg-surface-2 px-3.5 py-3 text-[15px] text-ink-2">
+        No active batch.{" "}
+        <Link href="/batches/new" className="font-medium text-accent underline">
+          Add a planting batch
+        </Link>{" "}
+        to link entries to it.
+      </p>
+    );
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-medium text-ink-2">Batch</p>
+      <div className="flex flex-wrap gap-2">
+        {batches.map((b) => (
+          <label key={b.id} className="cursor-pointer">
+            <input type="checkbox" name="batchIds" value={b.id} defaultChecked={selected.includes(b.id)} className="peer sr-only" />
+            <span className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-[15px] text-ink-2 transition-colors peer-checked:border-accent/40 peer-checked:bg-accent-soft peer-checked:text-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent">
+              {b.name}
+              <span className="text-xs text-muted">{b.stage}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {error && <p className="mt-1 text-sm text-problem">{error}</p>}
+    </div>
+  );
+}
 
 function ProductSelect({
   products,
@@ -156,6 +196,8 @@ const num = (v: string) => {
   return v.trim() && Number.isFinite(n) ? n : undefined;
 };
 
+type Err = (k: string) => string | undefined;
+
 function SprayFields({
   activity,
   products,
@@ -166,17 +208,16 @@ function SprayFields({
   activity?: Extract<Activity, { type: "spray" }>;
   products: Product[];
   defaultProductId?: string;
-  err: (k: string) => string | undefined;
+  err: Err;
   returnHref: string;
 }) {
   const s = activity?.spray;
   const [productId, setProductId] = useState(s?.productId ?? defaultProductId ?? "");
   const [dose, setDose] = useState(s ? String(s.dosePerTank) : "");
   const [tanks, setTanks] = useState(s ? String(s.tanks) : "");
-  const [weather, setWeather] = useState(s?.weather ?? "Sunny");
+  const [weather, setWeather] = useState(s?.weather || "Sunny");
   const product = products.find((p) => p.id === productId);
   const total = num(dose) !== undefined && num(tanks) !== undefined ? num(dose)! * num(tanks)! : undefined;
-  const estCost = product && total !== undefined ? (total / product.packSize) * product.packPriceRm : undefined;
   const weatherOptions = WEATHER.includes(weather) ? WEATHER : [...WEATHER, weather];
 
   return (
@@ -199,13 +240,9 @@ function SprayFields({
       {total !== undefined && product && (
         <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[15px] text-ink-2">
           Total used: <b className="font-medium text-ink">{formatQty(total, product.unit)}</b>
-          {estCost !== undefined && <> · about <b className="font-medium text-ink">{formatRm(estCost)}</b></>}
           {product.phiDays ? <> · {product.phiDays}-day wait before harvest</> : null}
         </p>
       )}
-      <FormField label="Cost (RM)" hint="Leave empty to calculate from the product price" error={err("costRm")}>
-        <Input name="costRm" inputMode="decimal" defaultValue={activity ? s?.costRm : undefined} placeholder={estCost !== undefined ? estCost.toFixed(2) : "Auto"} error={err("costRm")} />
-      </FormField>
       <div>
         <p className="mb-1.5 text-sm font-medium text-ink-2">Weather</p>
         <Segmented name="weather" value={weather} onChange={setWeather} options={weatherOptions.map((w) => ({ value: w, label: w }))} />
@@ -214,94 +251,149 @@ function SprayFields({
   );
 }
 
-function FertilizerFields({
-  activity,
+function TankMixFields({
+  details,
+  last,
   products,
-  defaultProductId,
-  defaultStage,
   err,
   returnHref,
 }: {
-  activity?: Extract<Activity, { type: "fertilizer" }>;
+  details?: TankMixDetails;
+  last?: TankMixDetails;
   products: Product[];
-  defaultProductId?: string;
-  defaultStage: PlantStage;
-  err: (k: string) => string | undefined;
+  err: Err;
   returnHref: string;
 }) {
-  const f = activity?.fertilizer;
-  const [productId, setProductId] = useState(f?.productId ?? defaultProductId ?? "");
-  const [qty, setQty] = useState(f ? String(f.quantity) : "");
-  const product = products.find((p) => p.id === productId);
-  const estCost = product && num(qty) !== undefined ? (num(qty)! / product.packSize) * product.packPriceRm : undefined;
+  // New tanks start from the previous tank's recipe; readings are always fresh.
+  const start = details ?? last;
+  const nextKey = useRef(0);
+  const [rows, setRows] = useState(() =>
+    (details?.additives ?? []).map((a, i) => ({ key: -1 - i, productId: a.productId, qty: String(a.quantity) })),
+  );
+  const unitOf = (id: string) => products.find((p) => p.id === id)?.unit;
 
   return (
-    <Section title="Baja details">
-      <ProductSelect products={products} value={productId} onChange={setProductId} error={err("productId")} category="fertilizer" returnHref={returnHref} />
-      <FormField label={`Quantity${product ? ` (${product.unit})` : ""}`} error={err("quantity")}>
-        <Input name="quantity" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} error={err("quantity")} />
-      </FormField>
-      <div>
-        <p className="mb-1.5 text-sm font-medium text-ink-2">Method</p>
-        <Segmented
-          name="method"
-          defaultValue={f?.method ?? "tabur"}
-          options={(Object.keys(FERT_METHOD_LABEL) as (keyof typeof FERT_METHOD_LABEL)[]).map((m) => ({ value: m, label: FERT_METHOD_LABEL[m] }))}
-        />
-        {err("method") && <p className="mt-1 text-sm text-problem">{err("method")}</p>}
+    <Section title="AB tank mix">
+      {!details && last && <p className="-mt-2 text-sm text-muted">Filled in from the last tank. Change anything that&apos;s different.</p>}
+      <div className="grid grid-cols-3 gap-3">
+        <FormField label="A" error={err("aAmount")}>
+          <Input name="aAmount" inputMode="decimal" defaultValue={start?.aAmount} error={err("aAmount")} />
+        </FormField>
+        <FormField label="B" error={err("bAmount")}>
+          <Input name="bAmount" inputMode="decimal" defaultValue={start?.bAmount} error={err("bAmount")} />
+        </FormField>
+        <FormField label="Unit" error={err("abUnit")}>
+          <Select name="abUnit" defaultValue={start?.abUnit ?? "L"} error={err("abUnit")}>
+            {["L", "ml", "kg", "g"].map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </Select>
+        </FormField>
       </div>
-      <FormField label="Plant stage" error={err("plantStage")}>
-        <Select name="plantStage" defaultValue={f?.plantStage ?? defaultStage} error={err("plantStage")}>
-          {(Object.keys(STAGE_LABEL) as PlantStage[]).map((s) => (
-            <option key={s} value={s}>
-              {STAGE_LABEL[s]}
-            </option>
+      <FormField label="Water in the tank (litres)" error={err("waterL")}>
+        <Input name="waterL" inputMode="decimal" defaultValue={start?.waterL ?? 1000} error={err("waterL")} />
+      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="EC (mS/cm)" hint={last?.ec !== undefined && !details ? `Last tank: ${last.ec}` : undefined} error={err("ec")}>
+          <Input name="ec" inputMode="decimal" defaultValue={details?.ec} placeholder="e.g. 2.2" error={err("ec")} />
+        </FormField>
+        <FormField label="pH" hint={last?.ph !== undefined && !details ? `Last tank: ${last.ph}` : undefined} error={err("ph")}>
+          <Input name="ph" inputMode="decimal" defaultValue={details?.ph} placeholder="e.g. 6.0" error={err("ph")} />
+        </FormField>
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink-2">Extra fertilizer added to the tank</p>
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-center gap-2">
+              <Select
+                name="additiveProductId"
+                aria-label="Extra fertilizer"
+                value={r.productId}
+                onChange={(e) => setRows((list) => list.map((x) => (x.key === r.key ? { ...x, productId: e.target.value } : x)))}
+                className="min-w-0 flex-1"
+              >
+                <option value="">Choose…</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+              <div className="relative w-28 shrink-0">
+                <Input
+                  name="additiveQty"
+                  aria-label="Amount"
+                  inputMode="decimal"
+                  value={r.qty}
+                  onChange={(e) => setRows((list) => list.map((x) => (x.key === r.key ? { ...x, qty: e.target.value } : x)))}
+                  className="pr-12"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted">{unitOf(r.productId) ?? ""}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                aria-label="Remove row"
+                className="grid size-11 shrink-0 place-items-center rounded-xl text-muted hover:bg-surface-2 hover:text-ink"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           ))}
-        </Select>
-      </FormField>
-      <FormField label="Cost (RM)" hint="Leave empty to calculate from the product price" error={err("costRm")}>
-        <Input name="costRm" inputMode="decimal" defaultValue={activity ? f?.costRm : undefined} placeholder={estCost !== undefined ? estCost.toFixed(2) : "Auto"} error={err("costRm")} />
-      </FormField>
+        </div>
+        {err("additives") && <p className="mt-1 text-sm text-problem">{err("additives")}</p>}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <button
+            type="button"
+            onClick={() => setRows((list) => [...list, { key: nextKey.current++, productId: "", qty: "" }])}
+            className="inline-flex min-h-11 items-center gap-1.5 text-[15px] font-medium text-accent"
+          >
+            <Plus className="size-4" /> Add extra fertilizer
+          </button>
+          <Link href={`/products/new?category=fertilizer&return=${encodeURIComponent(returnHref)}`} className="text-sm text-muted underline">
+            New fertilizer not in the list
+          </Link>
+        </div>
+      </div>
     </Section>
   );
 }
 
-function WaterFields({
-  activity,
+function OtherBajaFields({
+  details,
+  products,
+  defaultProductId,
   err,
+  returnHref,
 }: {
-  activity?: Extract<Activity, { type: "water" }>;
-  err: (k: string) => string | undefined;
+  details?: FertilizerDetails;
+  products: Product[];
+  defaultProductId?: string;
+  err: Err;
+  returnHref: string;
 }) {
-  const w = activity?.water;
-  const [rained, setRained] = useState(w?.rained ?? false);
+  const [productId, setProductId] = useState(details?.productId ?? defaultProductId ?? "");
+  const product = products.find((p) => p.id === productId);
   return (
-    <Section title="Watering details">
+    <Section title="Baja details">
+      <p className="-mt-2 text-sm text-muted">For fertilizer not given through the drip tank.</p>
+      <ProductSelect products={products} value={productId} onChange={setProductId} error={err("productId")} category="fertilizer" returnHref={returnHref} />
+      <FormField label={`Quantity${product ? ` (${product.unit})` : ""}`} error={err("quantity")}>
+        <Input name="quantity" inputMode="decimal" defaultValue={details?.quantity} error={err("quantity")} />
+      </FormField>
       <div>
         <p className="mb-1.5 text-sm font-medium text-ink-2">Method</p>
         <Segmented
           name="method"
-          defaultValue={w?.method ?? "drip"}
-          options={(Object.keys(WATER_METHOD_LABEL) as (keyof typeof WATER_METHOD_LABEL)[]).map((m) => ({ value: m, label: WATER_METHOD_LABEL[m] }))}
+          defaultValue={details?.method ?? "foliar"}
+          options={(Object.keys(FERT_METHOD_LABEL) as FertilizerDetails["method"][]).map((m) => ({ value: m, label: FERT_METHOD_LABEL[m] }))}
         />
+        {err("method") && <p className="mt-1 text-sm text-problem">{err("method")}</p>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Duration (minutes)" error={err("durationMin")}>
-          <Input name="durationMin" inputMode="numeric" defaultValue={w?.durationMin} error={err("durationMin")} />
-        </FormField>
-        <FormField label="Volume (litres)" hint="Optional" error={err("volumeL")}>
-          <Input name="volumeL" inputMode="decimal" defaultValue={w?.volumeL} error={err("volumeL")} />
-        </FormField>
-      </div>
-      <label className="flex items-center gap-3 text-[15px]">
-        <input type="checkbox" name="rained" checked={rained} onChange={(e) => setRained(e.target.checked)} className="size-5 accent-[var(--accent)]" />
-        It rained today (hujan)
-      </label>
-      {rained && (
-        <FormField label="Rain note" error={err("rainNote")}>
-          <Input name="rainNote" defaultValue={w?.rainNote} placeholder="e.g. Hujan renyai pagi" error={err("rainNote")} />
-        </FormField>
-      )}
     </Section>
   );
 }

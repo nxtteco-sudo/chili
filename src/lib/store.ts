@@ -4,18 +4,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dayKey } from "./dates";
 import { buildDemoData } from "./demo-data";
-import type { Activity, Problem, Product } from "./types";
+import type { Activity, Batch, Problem, Product, Variety } from "./types";
 
 // Local JSON store used until Supabase is connected (Phase 2). Everything
 // lives in ./data on this computer; photos go to ./data/uploads.
 
 export type Store = {
-  version: 1;
+  version: typeof VERSION;
   seededOn: string;
   products: Product[];
+  varieties: Variety[];
+  batches: Batch[];
   activities: Activity[];
   problems: Problem[];
 };
+
+// Bump when the shape changes; older local files are replaced with fresh demo data.
+const VERSION = 2;
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const FILE = path.join(DATA_DIR, "farm.json");
@@ -28,9 +33,11 @@ function seed(): Store {
   const today = dayKey(new Date());
   const demo = buildDemoData(today);
   return {
-    version: 1,
+    version: VERSION,
     seededOn: today,
     products: demo.products,
+    varieties: demo.varieties,
+    batches: demo.batches,
     activities: demo.activities,
     problems: demo.problems,
   };
@@ -39,9 +46,12 @@ function seed(): Store {
 async function load(): Promise<Store> {
   if (memo) return memo;
   try {
-    memo = JSON.parse(await fs.readFile(FILE, "utf8")) as Store;
+    const stored = JSON.parse(await fs.readFile(FILE, "utf8")) as Store;
+    if (stored.version === VERSION) memo = stored;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+  if (!memo) {
     memo = seed();
     await save(memo);
   }
@@ -58,6 +68,7 @@ async function save(store: Store) {
 function sort(store: Store) {
   store.activities.sort((a, z) => z.occurredAt.localeCompare(a.occurredAt));
   store.problems.sort((a, z) => z.foundOn.localeCompare(a.foundOn) || a.id.localeCompare(z.id));
+  store.batches.sort((a, z) => (z.sownOn ?? z.transplantedOn ?? "").localeCompare(a.sownOn ?? a.transplantedOn ?? ""));
 }
 
 export async function readStore(): Promise<Store> {

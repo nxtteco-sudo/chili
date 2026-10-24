@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { ButtonLink, Card, PageHeader, PageSkeleton, SectionTitle, TypeIcon } from "@/components/ui";
 import { getProductUsage, getToday, type ProductUsage } from "@/lib/data";
 import { relativeDay } from "@/lib/dates";
-import { formatQty, formatRm } from "@/lib/format";
+import { formatQty } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Products" };
 
@@ -14,7 +14,7 @@ export default function ProductsPage() {
     <>
       <PageHeader
         title="Products"
-        subtitle="Racun & baja: prices, waiting periods and how much was used"
+        subtitle="Racun & baja: waiting periods and how much was used"
         action={
           <ButtonLink href="/products/new">
             <Plus className="size-5" /> <span>Add product</span>
@@ -42,7 +42,7 @@ async function Products() {
           <Card>
             <ul className="divide-y divide-line">
               {g.items
-                .sort((a, z) => z.totalCost - a.totalCost)
+                .sort((a, z) => (z.lastUsed ?? "").localeCompare(a.lastUsed ?? "") || a.product.name.localeCompare(z.product.name))
                 .map((u) => (
                   <ProductRow key={u.product.id} usage={u} today={today} />
                 ))}
@@ -63,12 +63,14 @@ function ProductRow({ usage: u, today }: { usage: ProductUsage; today: string })
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium">{p.name}</p>
           <p className="truncate text-sm text-ink-2">
-            {p.subtype} · {formatQty(p.packSize, p.unit)} for {formatRm(p.packPriceRm)}
+            {p.subtype}
+            {p.activeIngredient && ` · ${p.activeIngredient}`}
+            {p.npk && ` · ${p.npk}`}
             {p.phiDays !== undefined && ` · ${p.phiDays}-day wait`}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="tabular text-[15px] font-medium">{formatRm(u.totalCost)}</p>
+          <p className="tabular text-[15px] font-medium">{u.uses ? formatQty(u.totalQty, p.unit) : "—"}</p>
           <p className="text-sm text-muted">
             {u.uses ? `${u.uses}× · ${relativeDay(u.lastUsed!, today).toLowerCase()}` : "Not used yet"}
           </p>

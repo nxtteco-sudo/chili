@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, MessageSquareText, Pencil, TriangleAlert } from "lucide-react";
+import { ArrowLeft, MessageSquareText, Pencil, Sprout, TriangleAlert } from "lucide-react";
 import { PhotoGallery } from "@/components/photo-tile";
 import { ButtonLink, Card, Field, PageSkeleton, StatusBadge, TypeBadge, TypeIcon } from "@/components/ui";
-import { getActivity, getProblem, getProducts, getToday } from "@/lib/data";
+import { STAGE_META } from "@/lib/batches";
+import { getActivity, getBatches, getProblem, getProducts, getToday } from "@/lib/data";
 import { dayKey, formatFull, formatLong, formatTime, relativeDay } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
-import { FERT_METHOD_LABEL, STAGE_LABEL, WATER_METHOD_LABEL } from "@/lib/entry-meta";
-import { formatQty, formatRm } from "@/lib/format";
+import { FERT_METHOD_LABEL } from "@/lib/entry-meta";
+import { formatQty } from "@/lib/format";
 import type { Activity, Product } from "@/lib/types";
 
 export default function EntryPage(props: PageProps<"/entries/[id]">) {
@@ -24,11 +25,13 @@ async function EntryDetail({ params }: { params: PageProps<"/entries/[id]">["par
   const activity = await getActivity(id);
   if (!activity) notFound();
 
-  const [today, products, problem] = await Promise.all([
+  const [today, products, problem, batches] = await Promise.all([
     getToday(),
     getProducts(),
     activity.problemId ? getProblem(activity.problemId) : Promise.resolve(undefined),
+    getBatches(),
   ]);
+  const linkedBatches = batches.filter((b) => activity.batchIds.includes(b.batch.id));
   const { title } = describeActivity(activity, products);
   const key = dayKey(activity.occurredAt);
 
@@ -53,6 +56,22 @@ async function EntryDetail({ params }: { params: PageProps<"/entries/[id]">["par
           </p>
         </div>
       </header>
+
+      {linkedBatches.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-ink-2">For</span>
+          {linkedBatches.map((b) => (
+            <Link
+              key={b.batch.id}
+              href={`/batches/${b.batch.id}`}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-accent-soft px-3 text-[13px] font-medium text-accent"
+            >
+              <Sprout className="size-4" /> {b.batch.name}
+              <span className="font-normal text-muted">· {STAGE_META[b.info.stage].label}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {problem && (
         <Link
@@ -113,7 +132,6 @@ function Details({ activity, products, today }: { activity: Activity; products: 
         </Field>
         <Field label="Tanks">{s.tanks} tong</Field>
         <Field label="Total used">{formatQty(s.totalQty, s.doseUnit)}</Field>
-        <Field label="Cost">{formatRm(s.costRm)}</Field>
         <Field label="Weather">{s.weather}</Field>
         <Field label="Waiting period">{p?.phiDays ?? 0} days</Field>
         <div className="col-span-2">
@@ -138,18 +156,33 @@ function Details({ activity, products, today }: { activity: Activity; products: 
         <Field label="NPK">{p?.npk}</Field>
         <Field label="Quantity">{formatQty(f.quantity, f.unit)}</Field>
         <Field label="Method">{FERT_METHOD_LABEL[f.method]}</Field>
-        <Field label="Plant stage">{STAGE_LABEL[f.plantStage]}</Field>
-        <Field label="Cost">{formatRm(f.costRm)}</Field>
       </>
     );
   }
-  const w = activity.water;
+  const t = activity.tankMix;
   return (
     <>
-      <Field label="Method">{WATER_METHOD_LABEL[w.method]}</Field>
-      <Field label="Duration">{w.durationMin ? `${w.durationMin} min` : undefined}</Field>
-      <Field label="Volume">{w.volumeL ? `~${formatQty(w.volumeL, "L")}` : undefined}</Field>
-      <Field label="Rain">{w.rained ? (w.rainNote ?? "Yes") : "No rain"}</Field>
+      <Field label="A">{formatQty(t.aAmount, t.abUnit)}</Field>
+      <Field label="B">{formatQty(t.bAmount, t.abUnit)}</Field>
+      <Field label="Water in tank">{formatQty(t.waterL, "L")}</Field>
+      <Field label="AB per 1000 L">{formatQty(((t.aAmount + t.bAmount) / t.waterL) * 1000, t.abUnit)}</Field>
+      <Field label="EC">{t.ec !== undefined ? `${t.ec} mS/cm` : undefined}</Field>
+      <Field label="pH">{t.ph}</Field>
+      <div className="col-span-2">
+        <Field label="Extra fertilizer added">
+          {t.additives.length === 0
+            ? "None"
+            : t.additives.map((x, i) => {
+                const p = products.find((y) => y.id === x.productId);
+                return (
+                  <span key={i} className="block">
+                    {p ? <Link href={`/products/${p.id}`} className="text-accent hover:underline">{p.name}</Link> : "Unknown product"}{" "}
+                    {formatQty(x.quantity, x.unit)}
+                  </span>
+                );
+              })}
+        </Field>
+      </div>
     </>
   );
 }

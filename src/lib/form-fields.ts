@@ -66,6 +66,14 @@ export class Fields {
     return v;
   }
 
+  optDate(name: string, label: string) {
+    const v = this.raw(name);
+    if (!v) return undefined;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v)))
+      return this.fail(name, `${label} isn't a valid date`);
+    return v;
+  }
+
   time(name: string, label: string) {
     const v = this.raw(name);
     if (!/^\d{2}:\d{2}$/.test(v)) return this.fail(name, `${label} is required`);

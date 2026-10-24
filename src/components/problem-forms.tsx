@@ -21,10 +21,14 @@ const CAUSES: { value: Problem["causeKind"]; label: string }[] = [
 export function ProblemForm({
   problem,
   today,
+  batches,
+  defaultBatchId,
   cancelHref,
 }: {
   problem?: Problem;
   today: string;
+  batches: { id: string; name: string }[];
+  defaultBatchId?: string;
   cancelHref: string;
 }) {
   const { state, onSubmit, onInput, err, pending } = useFormAction(saveProblem);
@@ -44,6 +48,16 @@ export function ProblemForm({
       </Section>
 
       <Section title="Details">
+        <FormField label="Batch" error={err("batchId")}>
+          <Select name="batchId" defaultValue={problem ? (problem.batchId ?? "") : (defaultBatchId ?? "")} error={err("batchId")}>
+            <option value="">Not for a specific batch</option>
+            {batches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+        </FormField>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Date found" error={err("foundOn")}>
             <Input type="date" name="foundOn" defaultValue={problem?.foundOn ?? today} error={err("foundOn")} />

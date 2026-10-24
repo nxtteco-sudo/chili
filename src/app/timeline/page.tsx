@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ActivityRow } from "@/components/activity-row";
 import { SearchForm } from "@/components/search-form";
 import { Card, Chips, EmptyState, PageHeader, PageSkeleton, StatusBadge, TypeIcon } from "@/components/ui";
-import { getActivities, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { addDays, dayKey, formatWeekday, relativeDay } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 import { href, oneOf, param } from "@/lib/params";
@@ -12,7 +12,7 @@ import type { Activity, Problem } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Timeline" };
 
-const TYPES = ["spray", "fertilizer", "water", "problem"] as const;
+const TYPES = ["spray", "tank_mix", "fertilizer", "problem"] as const;
 const RANGES = { "7": 7, "30": 30, "90": 90, all: undefined } as const;
 type RangeKey = keyof typeof RANGES;
 
@@ -37,12 +37,14 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
   const range: RangeKey = oneOf(param(sp, "range"), ["7", "30", "90", "all"] as const) ?? "30";
   const q = param(sp, "q");
   const sinceDays = RANGES[range];
+  const allBatches = await getBatches();
+  const batchId = allBatches.some((b) => b.batch.id === param(sp, "batch")) ? param(sp, "batch") : undefined;
 
   const [today, products, activities, problems] = await Promise.all([
     getToday(),
     getProducts(),
-    type === "problem" ? Promise.resolve([]) : getActivities({ type, q, sinceDays }),
-    !type || type === "problem" ? getProblems({ q }) : Promise.resolve([]),
+    type === "problem" ? Promise.resolve([]) : getActivities({ type, q, sinceDays, batchId }),
+    !type || type === "problem" ? getProblems({ q, batchId }) : Promise.resolve([]),
   ]);
 
   const since = sinceDays !== undefined ? addDays(today, -sinceDays) : undefined;
@@ -59,7 +61,7 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
     days.set(key, [...(days.get(key) ?? []), r]);
   }
 
-  const base = { type, range: range === "30" ? undefined : range, q };
+  const base = { type, range: range === "30" ? undefined : range, q, batch: batchId };
 
   return (
     <div className="space-y-4">
@@ -67,7 +69,7 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
         action="/timeline"
         q={q}
         placeholder="Search product, pest, notes…"
-        keep={{ type, range: base.range }}
+        keep={{ type, range: base.range, batch: batchId }}
       />
       <Chips
         items={[
@@ -88,6 +90,18 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
           }),
         ]}
       />
+      {allBatches.length > 0 && (
+        <Chips
+          items={[
+            { href: href("/timeline", { ...base, batch: undefined }), label: "All batches", active: !batchId },
+            ...allBatches.map((b) => ({
+              href: href("/timeline", { ...base, batch: b.batch.id }),
+              label: b.batch.name,
+              active: batchId === b.batch.id,
+            })),
+          ]}
+        />
+      )}
       <Chips
         items={(["7", "30", "90", "all"] as const).map((r) => ({
           href: href("/timeline", { ...base, range: r === "30" ? undefined : r }),

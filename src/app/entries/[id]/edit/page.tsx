@@ -5,7 +5,8 @@ import { deleteActivity } from "@/app/actions";
 import { ActivityForm } from "@/components/activity-form";
 import { DeleteButton } from "@/components/form-ui";
 import { PageHeader, PageSkeleton } from "@/components/ui";
-import { getActivity, getProblems, getProducts, getToday } from "@/lib/data";
+import { STAGE_META } from "@/lib/batches";
+import { getActivity, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { nowTime } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 
@@ -25,7 +26,10 @@ async function EditEntry({ params }: { params: PageProps<"/entries/[id]/edit">["
   const { id } = await params;
   const activity = await getActivity(id);
   if (!activity) notFound();
-  const [today, products, problems] = await Promise.all([getToday(), getProducts(), getProblems()]);
+  const [today, products, problems, batches] = await Promise.all([getToday(), getProducts(), getProblems(), getBatches()]);
+  const batchOptions = batches
+    .filter((b) => b.active || activity.batchIds.includes(b.batch.id))
+    .map((b) => ({ id: b.batch.id, name: b.batch.name, stage: STAGE_META[b.info.stage].label }));
   const options = problems
     .filter((p) => p.status === "open" || p.id === activity.problemId)
     .map((p) => ({ id: p.id, title: p.title, status: p.status }));
@@ -47,7 +51,8 @@ async function EditEntry({ params }: { params: PageProps<"/entries/[id]/edit">["
         activity={activity}
         products={products}
         problems={options}
-        defaults={{ date: today, time: nowTime(), plantStage: "vegetative" }}
+        batches={batchOptions}
+        defaults={{ date: today, time: nowTime(), batchIds: activity.batchIds }}
         cancelHref={`/entries/${id}`}
         returnHref={`/entries/${id}/edit`}
       />

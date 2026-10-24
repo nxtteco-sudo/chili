@@ -1,15 +1,16 @@
 import { csvResponse } from "@/lib/csv";
-import { costOf, getActivities, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
 import { diffDays, formatTime } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
-import { OUTCOME_META } from "@/lib/entry-meta";
+import { ENTRY_META, OUTCOME_META } from "@/lib/entry-meta";
 
 export async function GET() {
-  const [today, problems, activities, products] = await Promise.all([
+  const [today, problems, activities, products, batches] = await Promise.all([
     getToday(),
     getProblems(),
     getActivities(),
     getProducts(),
+    getBatches(),
   ]);
 
   const rows = [...problems].reverse().map((p) => {
@@ -18,7 +19,7 @@ export async function GET() {
       ...p.updates.map((u) => ({ at: u.occurredAt, text: `${u.kind === "action" ? "Action: " : ""}${u.body}` })),
       ...linked.map((a) => {
         const d = describeActivity(a, products);
-        return { at: a.occurredAt, text: `${a.type === "spray" ? "Spray" : "Baja"}: ${d.title}, ${d.detail}` };
+        return { at: a.occurredAt, text: `${ENTRY_META[a.type].label}: ${d.title}, ${d.detail}` };
       }),
     ]
       .sort((a, z) => a.at.localeCompare(z.at))
@@ -39,7 +40,7 @@ export async function GET() {
       p.tags.join(", "),
       p.lesson,
       steps,
-      linked.reduce((s, a) => s + costOf(a), 0).toFixed(2),
+      batches.find((b) => b.batch.id === p.batchId)?.batch.name,
     ];
   });
 
@@ -47,7 +48,7 @@ export async function GET() {
     `kebun-cili-problems-${today}.csv`,
     [
       "Found", "Title", "Status", "Result", "Closed", "Days", "Cause type", "Suspected cause", "Affected part",
-      "Severity", "Symptoms", "Tags", "Lesson", "What was done", "Spent (RM)",
+      "Severity", "Symptoms", "Tags", "Lesson", "What was done", "Batch",
     ],
     rows,
   );

@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityForm } from "@/components/activity-form";
 import { Chips, PageHeader, PageSkeleton } from "@/components/ui";
-import { getActivities, getProblems, getProducts, getToday } from "@/lib/data";
+import { STAGE_META } from "@/lib/batches";
+import { getActiveBatches, getActivities, getProblems, getProducts, getToday } from "@/lib/data";
 import { nowTime } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 import { href, oneOf, param } from "@/lib/params";
 
 export const metadata: Metadata = { title: "New entry" };
 
-const TYPES = ["spray", "fertilizer", "water"] as const;
+const TYPES = ["spray", "tank_mix", "fertilizer"] as const;
 
 export default function NewEntryPage(props: PageProps<"/log/new">) {
   return (
@@ -27,16 +28,24 @@ async function NewEntry({ searchParams }: { searchParams: PageProps<"/log/new">[
   const productId = param(sp, "product");
   const problemId = param(sp, "problem");
 
-  const [today, products, problems, lastBaja] = await Promise.all([
+  const [today, products, problems, batches, lastTank] = await Promise.all([
     getToday(),
     getProducts(),
     getProblems(),
-    getActivities({ type: "fertilizer" }),
+    getActiveBatches(),
+    getActivities({ type: "tank_mix" }),
   ]);
-  const lastStage = lastBaja[0]?.type === "fertilizer" ? lastBaja[0].fertilizer.plantStage : "vegetative";
   const options = problems
     .filter((p) => p.status === "open" || p.id === problemId)
     .map((p) => ({ id: p.id, title: p.title, status: p.status }));
+  // A spray for a problem defaults to that problem's batch; otherwise every active batch.
+  const problemBatch = problems.find((p) => p.id === problemId)?.batchId;
+  const batchOptions = batches
+    .filter((b) => b.info.stage !== "nursery" || type !== "tank_mix")
+    .map((b) => ({ id: b.batch.id, name: b.batch.name, stage: STAGE_META[b.info.stage].label }));
+  const defaultBatchIds = problemBatch
+    ? [problemBatch]
+    : batchOptions.filter((b) => batches.find((x) => x.batch.id === b.id)?.info.stage !== "nursery").map((b) => b.id);
   const meta = ENTRY_META[type];
 
   return (
@@ -57,7 +66,9 @@ async function NewEntry({ searchParams }: { searchParams: PageProps<"/log/new">[
         type={type}
         products={products}
         problems={options}
-        defaults={{ date: today, time: nowTime(), plantStage: lastStage, productId, problemId }}
+        batches={batchOptions}
+        defaults={{ date: today, time: nowTime(), productId, problemId, batchIds: defaultBatchIds }}
+        lastTankMix={lastTank[0]?.type === "tank_mix" ? lastTank[0].tankMix : undefined}
         cancelHref={problemId ? `/problems/${problemId}` : "/"}
         returnHref={href("/log/new", { type, problem: problemId })}
       />

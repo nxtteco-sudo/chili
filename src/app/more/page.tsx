@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ChartColumn, ChevronRight, FileSpreadsheet, Package, Plus, Send } from "lucide-react";
+import { CalendarDays, ChartColumn, ChevronRight, FileSpreadsheet, Package, Plus, Send, Wheat } from "lucide-react";
 import { resetDemoData } from "@/app/actions";
 import { DeleteButton } from "@/components/form-ui";
 import { InstallHint } from "@/components/pwa";
@@ -12,13 +12,16 @@ import { formatLong } from "@/lib/dates";
 export const metadata: Metadata = { title: "More" };
 
 const LINKS = [
-  { href: "/log", label: "Add entry", note: "Spray, baja, water or a problem", icon: Plus },
-  { href: "/products", label: "Products", note: "Racun & baja prices, usage", icon: Package },
-  { href: "/reports", label: "Reports", note: "Spending and problem summary", icon: ChartColumn },
+  { href: "/log", label: "Add entry", note: "Spray, tank mix, other baja or a problem", icon: Plus },
+  { href: "/calendar", label: "Calendar", note: "What was done each day, batch milestones", icon: CalendarDays },
+  { href: "/products", label: "Products", note: "Racun & baja, waiting periods, usage", icon: Package },
+  { href: "/varieties", label: "Varieties", note: "Jenis cili and their day counts", icon: Wheat },
+  { href: "/reports", label: "Reports", note: "EC/pH trends, AB used, rotation, batches", icon: ChartColumn },
 ];
 
 const EXPORTS = [
-  { href: "/export/entries", label: "All entries", note: "Sprays, baja and watering" },
+  { href: "/export/entries", label: "All entries", note: "Sprays, tank mixes and other baja" },
+  { href: "/export/batches", label: "All batches", note: "Planting dates and milestones" },
   { href: "/export/problems", label: "All problems", note: "With what was done and the lesson" },
 ];
 
@@ -74,7 +77,7 @@ export default function MorePage() {
           <div className="text-[15px]">
             <p className="font-medium">Logging from Telegram</p>
             <p className="mt-0.5 text-ink-2">
-              Soon dad can send spray, baja, watering and problems (with photos) to the farm bot, and
+              Soon dad can send sprays, tank mixes, baja and problems (with photos) to the farm bot, and
               they&apos;ll show up here automatically.
             </p>
           </div>

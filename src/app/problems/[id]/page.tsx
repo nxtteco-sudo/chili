@@ -7,11 +7,11 @@ import { DeleteButton } from "@/components/form-ui";
 import { CloseProblemForm, ProblemUpdateForm } from "@/components/problem-forms";
 import { PhotoGallery, PhotoTile } from "@/components/photo-tile";
 import { ButtonLink, Card, Field, PageSkeleton, SectionTitle, StatusBadge, TypeIcon } from "@/components/ui";
-import { getActivities, getProblem, getProducts, getSimilarProblems, getToday } from "@/lib/data";
+import { getActivities, getBatch, getProblem, getProducts, getSimilarProblems, getToday } from "@/lib/data";
 import { dayKey, diffDays, formatLong, formatShort, formatTime, nowTime, relativeDay } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
 import { ENTRY_META, OUTCOME_META, SEVERITY_LABEL } from "@/lib/entry-meta";
-import { cn, formatRm } from "@/lib/format";
+import { cn } from "@/lib/format";
 import type { Activity, Photo, ProblemUpdate } from "@/lib/types";
 
 export default function ProblemPage(props: PageProps<"/problems/[id]">) {
@@ -31,11 +31,12 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
   const problem = await getProblem(id);
   if (!problem) notFound();
 
-  const [today, products, linked, similar] = await Promise.all([
+  const [today, products, linked, similar, batch] = await Promise.all([
     getToday(),
     getProducts(),
     getActivities({ problemId: id }),
     getSimilarProblems(problem),
+    problem.batchId ? getBatch(problem.batchId) : Promise.resolve(undefined),
   ]);
 
   const steps: Step[] = [
@@ -48,7 +49,6 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
     ...problem.updates.flatMap((u) => u.photos),
     ...linked.flatMap((a) => a.photos),
   ];
-  const spent = linked.reduce((s, a) => s + describeActivity(a, products).cost, 0);
   const lasted = diffDays(problem.resolvedOn ?? today, problem.foundOn);
   const lastTime =
     problem.status === "open" ? similar.find((p) => p.status === "resolved" && p.lesson) : undefined;
@@ -172,11 +172,6 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
                 </li>
               ))}
             </ol>
-            {spent > 0 && (
-              <p className="mt-4 border-t border-line pt-3 text-sm text-ink-2">
-                Spent on this problem: <span className="tabular font-medium text-ink">{formatRm(spent)}</span>
-              </p>
-            )}
           </Card>
 
           {problem.status === "open" ? (
@@ -187,8 +182,11 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
                   <ButtonLink href={`/log/new?type=spray&problem=${problem.id}`} variant="secondary">
                     <TypeIcon type="spray" size="sm" /> Log a spray
                   </ButtonLink>
+                  <ButtonLink href={`/log/new?type=tank_mix&problem=${problem.id}`} variant="secondary">
+                    <TypeIcon type="tank_mix" size="sm" /> Log tank mix
+                  </ButtonLink>
                   <ButtonLink href={`/log/new?type=fertilizer&problem=${problem.id}`} variant="secondary">
-                    <TypeIcon type="fertilizer" size="sm" /> Log baja
+                    <TypeIcon type="fertilizer" size="sm" /> Log other baja
                   </ButtonLink>
                 </div>
                 <ProblemUpdateForm problemId={problem.id} today={today} now={nowTime()} />
@@ -220,6 +218,15 @@ async function ProblemDetail({ params }: { params: PageProps<"/problems/[id]">["
               </Field>
               <Field label="Severity">{SEVERITY_LABEL[problem.severity]}</Field>
               <Field label="Duration">{lasted} days</Field>
+              <div className="col-span-2">
+                <Field label="Batch">
+                  {batch ? (
+                    <Link href={`/batches/${batch.batch.id}`} className="text-accent hover:underline">
+                      {batch.batch.name}
+                    </Link>
+                  ) : undefined}
+                </Field>
+              </div>
               <div className="col-span-2">
                 <dt className="text-xs uppercase tracking-wide text-muted">Tags</dt>
                 <dd className="mt-1.5 flex flex-wrap gap-1.5">

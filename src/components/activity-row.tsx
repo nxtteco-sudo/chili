@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Camera, ChevronRight, Link2 } from "lucide-react";
 import { describeActivity } from "@/lib/describe";
-import { formatRm } from "@/lib/format";
 import { formatTime } from "@/lib/dates";
 import type { Activity, Product } from "@/lib/types";
 import { TypeIcon } from "./ui";
@@ -15,7 +14,7 @@ export function ActivityRow({
   products: Product[];
   dateLabel?: string;
 }) {
-  const { title, detail, cost } = describeActivity(activity, products);
+  const { title, detail } = describeActivity(activity, products);
   return (
     <Link
       href={`/entries/${activity.id}`}
@@ -32,7 +31,6 @@ export function ActivityRow({
       </div>
       <div className="shrink-0 text-right">
         <div className="tabular text-[11px] text-ink-2">{dateLabel ?? formatTime(activity.occurredAt)}</div>
-        {cost > 0 && <div className="tabular text-[10px] text-muted">{formatRm(cost)}</div>}
       </div>
       <ChevronRight className="size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 max-md:hidden" />
     </Link>

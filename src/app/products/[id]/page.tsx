@@ -6,7 +6,7 @@ import { ActivityRow } from "@/components/activity-row";
 import { ButtonLink, Card, EmptyState, Field, PageSkeleton, SectionTitle, TypeIcon } from "@/components/ui";
 import { getActivities, getProduct, getProductUsage, getProducts, getToday } from "@/lib/data";
 import { dayKey, formatLong, relativeDay } from "@/lib/dates";
-import { formatQty, formatRm } from "@/lib/format";
+import { formatQty } from "@/lib/format";
 
 export default function ProductPage(props: PageProps<"/products/[id]">) {
   return (
@@ -52,13 +52,10 @@ async function ProductDetail({ params }: { params: PageProps<"/products/[id]">["
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {product.activeIngredient && <Field label="Active ingredient">{product.activeIngredient}</Field>}
           {product.npk && <Field label="NPK">{product.npk}</Field>}
-          <Field label="Pack">
-            {formatQty(product.packSize, product.unit)} · {formatRm(product.packPriceRm)}
-          </Field>
+          <Field label="Measured in">{product.unit}</Field>
           {product.phiDays !== undefined && <Field label="Waiting period">{product.phiDays} days</Field>}
           <Field label="Times used">{u.uses}</Field>
           <Field label="Total used">{formatQty(u.totalQty, product.unit)}</Field>
-          <Field label="Total spent">{formatRm(u.totalCost)}</Field>
           {u.lastUsed && (
             <Field label="Last used">
               {formatLong(u.lastUsed)} ({relativeDay(u.lastUsed, today).toLowerCase()})

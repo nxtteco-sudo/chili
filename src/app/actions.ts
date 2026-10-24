@@ -11,8 +11,9 @@ import {
   photoFileExists,
   readStore,
   resetStore,
+  type Store,
 } from "@/lib/store";
-import type { Activity, Photo, Problem, ProblemUpdate, Product } from "@/lib/types";
+import type { Activity, Batch, Photo, Problem, ProblemUpdate, Product, TankAdditive, Variety } from "@/lib/types";
 
 // No login yet: these only run on this computer until Supabase Auth is added
 // in Phase 2, which must add a session check at the top of every action.
@@ -24,6 +25,10 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 function done(path: string): never {
   revalidatePath("/", "layout");
   redirect(path);
+}
+
+function safeReturn(path: string | undefined) {
+  return path && path.startsWith("/") && !path.startsWith("//") ? path : undefined;
 }
 
 async function resolvePhotos(f: Fields, existing: Photo[]) {
@@ -43,12 +48,24 @@ async function resolvePhotos(f: Fields, existing: Photo[]) {
 
 const allPhotoIds = (photos: Photo[]) => photos.filter((p) => p.url).map((p) => p.id);
 
-// ── Activities (spray / baja / water) ─────────────────────────────────────
+function resolveBatchIds(f: Fields, store: Store) {
+  const ids = [...new Set(f.list("batchIds"))];
+  if (ids.some((id) => !store.batches.some((b) => b.id === id))) f.errors.batchIds = "A selected batch no longer exists";
+  return ids;
+}
+
+function productIdsOfActivity(a: Activity) {
+  if (a.type === "spray") return [a.spray.productId];
+  if (a.type === "fertilizer") return [a.fertilizer.productId];
+  return a.tankMix.additives.map((x) => x.productId);
+}
+
+// ── Activities (spray / tank mix / other baja) ────────────────────────────
 
 export async function saveActivity(_prev: FormState, fd: FormData): Promise<FormState> {
   const f = new Fields(fd);
   const id = f.str("id", "Id");
-  const type = f.oneOf("type", "Type", ["spray", "fertilizer", "water"] as const);
+  const type = f.oneOf("type", "Type", ["spray", "tank_mix", "fertilizer"] as const);
   const date = f.date("date", "Date");
   const time = f.time("time", "Time");
   const problemId = f.str("problemId", "Problem");
@@ -60,6 +77,7 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
   if (existing && existing.type !== type) return { error: "An entry's type can't be changed." };
   if (problemId && !store.problems.some((p) => p.id === problemId))
     f.errors.problemId = "That problem no longer exists";
+  const batchIds = resolveBatchIds(f, store);
   const { photos, removed } = await resolvePhotos(f, existing?.photos ?? []);
 
   const findProduct = (category: Product["category"]) => {
@@ -72,6 +90,7 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
   const base = {
     id: existing?.id ?? randomUUID(),
     occurredAt: atTime(date ?? "", time ?? ""),
+    batchIds,
     problemId: problemId || undefined,
     notes,
     rawMessage: existing?.rawMessage,
@@ -86,9 +105,7 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
     const tanks = f.num("tanks", "Number of tong", { required: true, positive: true, max: 1000 });
     const target = f.str("target", "Target / reason", { required: true, max: 200 });
     const weather = f.str("weather", "Weather", { max: 100 });
-    const cost = f.num("costRm", "Cost");
     if (!f.ok) return f.state();
-    const totalQty = round2(dose! * tanks!);
     activity = {
       ...base,
       type,
@@ -98,44 +115,35 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
         doseUnit: product!.unit,
         tankSizeL: tankSize!,
         tanks: tanks!,
-        totalQty,
+        totalQty: round2(dose! * tanks!),
         target: target!,
         weather: weather ?? "",
-        costRm: round2(cost ?? (totalQty / product!.packSize) * product!.packPriceRm),
         safeHarvestOn: addDays(date!, product!.phiDays ?? 0),
       },
+    };
+  } else if (type === "tank_mix") {
+    const aAmount = f.num("aAmount", "A amount", { required: true, positive: true });
+    const bAmount = f.num("bAmount", "B amount", { required: true, positive: true });
+    const abUnit = f.oneOf("abUnit", "Unit", ["L", "ml", "kg", "g"] as const);
+    const waterL = f.num("waterL", "Water in tank", { required: true, positive: true, max: 100_000 });
+    const ec = f.num("ec", "EC", { max: 20 });
+    const ph = f.num("ph", "pH", { max: 14 });
+    const additives = parseAdditives(f, fd, store);
+    if (!f.ok) return f.state();
+    activity = {
+      ...base,
+      type,
+      tankMix: { aAmount: aAmount!, bAmount: bAmount!, abUnit: abUnit!, waterL: waterL!, ec, ph, additives },
     };
   } else if (type === "fertilizer") {
     const product = findProduct("fertilizer");
     const quantity = f.num("quantity", "Quantity", { required: true, positive: true });
-    const method = f.oneOf("method", "Method", ["tabur", "siram", "spray", "fertigation"] as const);
-    const plantStage = f.oneOf("plantStage", "Plant stage", ["nursery", "vegetative", "flowering", "fruiting", "harvest"] as const);
-    const cost = f.num("costRm", "Cost");
+    const method = f.oneOf("method", "Method", ["foliar", "tabur", "siram", "other"] as const);
     if (!f.ok) return f.state();
     activity = {
       ...base,
       type,
-      fertilizer: {
-        productId: product!.id,
-        quantity: quantity!,
-        unit: product!.unit,
-        method: method!,
-        plantStage: plantStage!,
-        costRm: round2(cost ?? (quantity! / product!.packSize) * product!.packPriceRm),
-      },
-    };
-  } else if (type === "water") {
-    const method = f.oneOf("method", "Method", ["drip", "sprinkler", "manual", "hose"] as const);
-    const durationMin = f.num("durationMin", "Duration", { int: true, max: 24 * 60 });
-    const volumeL = f.num("volumeL", "Volume");
-    const rained = f.bool("rained");
-    const rainNote = f.str("rainNote", "Rain note", { max: 200 });
-    if (!durationMin && !volumeL) f.errors.durationMin = "Enter the duration or the volume";
-    if (!f.ok) return f.state();
-    activity = {
-      ...base,
-      type,
-      water: { method: method!, durationMin, volumeL, rained, rainNote: rained ? rainNote : undefined },
+      fertilizer: { productId: product!.id, quantity: quantity!, unit: product!.unit, method: method! },
     };
   }
   if (!f.ok || !activity) return f.state();
@@ -148,6 +156,23 @@ export async function saveActivity(_prev: FormState, fd: FormData): Promise<Form
   });
   await deletePhotoFiles(removed);
   done(`/entries/${saved.id}`);
+}
+
+// Extra fertilizer rows in a tank mix arrive as parallel lists; blank rows are skipped.
+function parseAdditives(f: Fields, fd: FormData, store: Store): TankAdditive[] {
+  const ids = fd.getAll("additiveProductId").map(String);
+  const qtys = fd.getAll("additiveQty").map((v) => String(v).trim().replace(",", "."));
+  const out: TankAdditive[] = [];
+  ids.forEach((pid, i) => {
+    const raw = qtys[i] ?? "";
+    if (!pid && !raw) return;
+    const product = store.products.find((p) => p.id === pid && p.category === "fertilizer");
+    const qty = Number(raw);
+    if (!product) f.errors.additives = "Choose a product for each extra fertilizer row";
+    else if (!raw || !Number.isFinite(qty) || qty <= 0) f.errors.additives = `Enter an amount for ${product.name}`;
+    else out.push({ productId: product.id, quantity: qty, unit: product.unit });
+  });
+  return out;
 }
 
 export async function deleteActivity(fd: FormData) {
@@ -176,6 +201,7 @@ export async function saveProblem(_prev: FormState, fd: FormData): Promise<FormS
   const causeKind = f.oneOf("causeKind", "Cause type", CAUSES);
   const suspectedCause = f.str("suspectedCause", "Suspected cause", { max: 200 });
   const foundOn = f.date("foundOn", "Date found");
+  const batchId = f.str("batchId", "Batch");
   const tags = [
     ...new Set(
       (f.str("tags", "Tags", { max: 500 }) ?? "")
@@ -188,6 +214,7 @@ export async function saveProblem(_prev: FormState, fd: FormData): Promise<FormS
   const store = await readStore();
   const existing = id ? store.problems.find((p) => p.id === id) : undefined;
   if (id && !existing) return { error: "This problem no longer exists." };
+  if (batchId && !store.batches.some((b) => b.id === batchId)) f.errors.batchId = "That batch no longer exists";
   if (existing?.resolvedOn && foundOn && foundOn > existing.resolvedOn)
     f.errors.foundOn = "Can't be after the day it was closed";
   const { photos, removed } = await resolvePhotos(f, existing?.photos ?? []);
@@ -203,6 +230,7 @@ export async function saveProblem(_prev: FormState, fd: FormData): Promise<FormS
     suspectedCause: suspectedCause ?? "Unknown",
     tags,
     foundOn: foundOn!,
+    batchId: batchId || undefined,
     photos,
   };
   await mutate((s) => {
@@ -294,6 +322,143 @@ export async function reopenProblem(fd: FormData) {
   done(`/problems/${problemId}`);
 }
 
+// ── Planting batches & varieties ──────────────────────────────────────────
+
+// Each date in a batch must come on or after the ones before it.
+const BATCH_DATES = [
+  ["sownOn", "Seeds sown"],
+  ["transplantedOn", "Transplanted"],
+  ["firstFlowerOn", "First flowers"],
+  ["firstHarvestOn", "First harvest"],
+  ["endedOn", "Crop ended"],
+] as const;
+
+function checkDateOrder(f: Fields, dates: Partial<Record<(typeof BATCH_DATES)[number][0], string>>) {
+  let prev: { date: string; label: string } | undefined;
+  for (const [key, label] of BATCH_DATES) {
+    const d = dates[key];
+    if (!d) continue;
+    if (prev && d < prev.date) f.errors[key] ??= `Can't be before "${prev.label}"`;
+    prev = { date: d, label };
+  }
+}
+
+export async function saveBatch(_prev: FormState, fd: FormData): Promise<FormState> {
+  const f = new Fields(fd);
+  const id = f.str("id", "Id");
+  const name = f.str("name", "Batch name", { required: true, max: 80 });
+  const varietyId = f.str("varietyId", "Variety");
+  const dates = Object.fromEntries(BATCH_DATES.map(([key, label]) => [key, f.optDate(key, label)])) as Partial<
+    Record<(typeof BATCH_DATES)[number][0], string>
+  >;
+  const seedsCount = f.num("seedsCount", "Seeds", { int: true });
+  const polybagsCount = f.num("polybagsCount", "Polybags", { int: true });
+  const notes = f.str("notes", "Notes", { max: 2000 });
+  if (!dates.sownOn && !dates.transplantedOn) f.errors.sownOn ??= "Enter the sowing date or the transplant date";
+  checkDateOrder(f, dates);
+
+  const store = await readStore();
+  const existing = id ? store.batches.find((b) => b.id === id) : undefined;
+  if (id && !existing) return { error: "This batch no longer exists." };
+  if (varietyId && !store.varieties.some((v) => v.id === varietyId)) f.errors.varietyId = "Choose a variety from the list";
+  if (name && store.batches.some((b) => b.id !== id && b.name.toLowerCase() === name.toLowerCase()))
+    f.errors.name = "A batch with this name already exists";
+  const { photos, removed } = await resolvePhotos(f, existing?.photos ?? []);
+  if (!f.ok) return f.state();
+
+  const batch: Batch = {
+    id: existing?.id ?? randomUUID(),
+    name: name!,
+    varietyId: varietyId || undefined,
+    ...dates,
+    seedsCount,
+    polybagsCount,
+    notes,
+    photos,
+  };
+  await mutate((s) => {
+    const i = s.batches.findIndex((b) => b.id === batch.id);
+    if (i >= 0) s.batches[i] = batch;
+    else s.batches.push(batch);
+  });
+  await deletePhotoFiles(removed);
+  done(`/batches/${batch.id}`);
+}
+
+const MILESTONE_FIELD = { flower: "firstFlowerOn", harvest: "firstHarvestOn", end: "endedOn" } as const;
+
+export async function markBatchMilestone(_prev: FormState, fd: FormData): Promise<FormState> {
+  const f = new Fields(fd);
+  const batchId = f.str("batchId", "Batch", { required: true });
+  const milestone = f.oneOf("milestone", "Milestone", ["flower", "harvest", "end"] as const);
+  const date = f.date("date", "Date");
+  const store = await readStore();
+  const batch = store.batches.find((b) => b.id === batchId);
+  if (!batch) return { error: "This batch no longer exists." };
+  if (!f.ok) return f.state();
+  const field = MILESTONE_FIELD[milestone!];
+  const next = { ...batch, [field]: date };
+  checkDateOrder(f, next);
+  if (!f.ok) return { error: Object.values(f.errors)[0] };
+  await mutate((s) => {
+    const b = s.batches.find((x) => x.id === batchId);
+    if (b) b[field] = date;
+  });
+  done(`/batches/${batchId}`);
+}
+
+export async function deleteBatch(fd: FormData) {
+  const id = String(fd.get("id") ?? "");
+  const removed = await mutate((s) => {
+    const b = s.batches.find((x) => x.id === id);
+    s.batches = s.batches.filter((x) => x.id !== id);
+    for (const a of s.activities) a.batchIds = a.batchIds.filter((x) => x !== id);
+    for (const p of s.problems) if (p.batchId === id) p.batchId = undefined;
+    return b ? allPhotoIds(b.photos) : [];
+  });
+  await deletePhotoFiles(removed);
+  done("/batches");
+}
+
+export async function saveVariety(_prev: FormState, fd: FormData): Promise<FormState> {
+  const f = new Fields(fd);
+  const id = f.str("id", "Id");
+  const name = f.str("name", "Variety name", { required: true, max: 80 });
+  const day = (key: string, label: string) => f.num(key, label, { int: true, max: 400 });
+  const variety: Omit<Variety, "id"> = {
+    name: name ?? "",
+    daysSowToTransplant: day("daysSowToTransplant", "Days to transplant"),
+    daysTransplantToFlower: day("daysTransplantToFlower", "Days to flowering"),
+    daysTransplantToHarvest: day("daysTransplantToHarvest", "Days to first harvest"),
+    harvestSeasonDays: day("harvestSeasonDays", "Harvest season"),
+    notes: f.str("notes", "Notes", { max: 1000 }),
+  };
+  const returnTo = safeReturn(f.str("returnTo", "Return"));
+  const store = await readStore();
+  const existing = id ? store.varieties.find((v) => v.id === id) : undefined;
+  if (id && !existing) return { error: "This variety no longer exists." };
+  if (name && store.varieties.some((v) => v.id !== id && v.name.toLowerCase() === name.toLowerCase()))
+    f.errors.name = "A variety with this name already exists";
+  if (!f.ok) return f.state();
+
+  const saved: Variety = { id: existing?.id ?? randomUUID(), ...variety };
+  await mutate((s) => {
+    const i = s.varieties.findIndex((v) => v.id === saved.id);
+    if (i >= 0) s.varieties[i] = saved;
+    else s.varieties.push(saved);
+  });
+  done(returnTo ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}variety=${saved.id}` : "/varieties");
+}
+
+export async function deleteVariety(fd: FormData) {
+  const id = String(fd.get("id") ?? "");
+  await mutate((s) => {
+    if (s.batches.some((b) => b.varietyId === id)) return;
+    s.varieties = s.varieties.filter((v) => v.id !== id);
+  });
+  done("/varieties");
+}
+
 // ── Products ──────────────────────────────────────────────────────────────
 
 export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -305,18 +470,16 @@ export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormS
   const activeIngredient = f.str("activeIngredient", "Active ingredient", { max: 100 });
   const npk = f.str("npk", "NPK", { max: 40 });
   const unit = f.oneOf("unit", "Unit", ["ml", "L", "g", "kg", "karung", "pcs"] as const);
-  const packSize = f.num("packSize", "Pack size", { required: true, positive: true });
-  const packPriceRm = f.num("packPriceRm", "Pack price", { required: true });
   const phiDays = category === "pesticide" ? f.num("phiDays", "Waiting period", { int: true, max: 365 }) : undefined;
   const notes = f.str("notes", "Notes", { max: 1000 });
-  const returnTo = f.str("returnTo", "Return");
+  const returnTo = safeReturn(f.str("returnTo", "Return"));
 
   const store = await readStore();
   const existing = id ? store.products.find((p) => p.id === id) : undefined;
   if (id && !existing) return { error: "This product no longer exists." };
   if (name && store.products.some((p) => p.id !== id && p.name.toLowerCase() === name.toLowerCase()))
     f.errors.name = "A product with this name already exists";
-  const used = existing && store.activities.some((a) => productIdOfActivity(a) === existing.id);
+  const used = existing && store.activities.some((a) => productIdsOfActivity(a).includes(existing.id));
   if (used && category !== existing.category) f.errors.category = "Already used in entries, so the category can't change";
   if (used && unit !== existing.unit) f.errors.unit = "Already used in entries, so the unit can't change";
   if (!f.ok) return f.state();
@@ -326,11 +489,9 @@ export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormS
     name: name!,
     category: category!,
     subtype: subtype!,
-    activeIngredient,
-    npk,
+    activeIngredient: category === "pesticide" ? activeIngredient : undefined,
+    npk: category === "fertilizer" ? npk : undefined,
     unit: unit!,
-    packSize: packSize!,
-    packPriceRm: packPriceRm!,
     phiDays,
     notes,
   };
@@ -339,18 +500,13 @@ export async function saveProduct(_prev: FormState, fd: FormData): Promise<FormS
     if (i >= 0) s.products[i] = product;
     else s.products.push(product);
   });
-  const safeReturn = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : undefined;
-  done(safeReturn ? `${safeReturn}${safeReturn.includes("?") ? "&" : "?"}product=${product.id}` : `/products/${product.id}`);
-}
-
-function productIdOfActivity(a: Activity) {
-  return a.type === "spray" ? a.spray.productId : a.type === "fertilizer" ? a.fertilizer.productId : undefined;
+  done(returnTo ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}product=${product.id}` : `/products/${product.id}`);
 }
 
 export async function deleteProduct(fd: FormData) {
   const id = String(fd.get("id") ?? "");
   await mutate((s) => {
-    if (s.activities.some((a) => productIdOfActivity(a) === id)) return;
+    if (s.activities.some((a) => productIdsOfActivity(a).includes(id))) return;
     s.products = s.products.filter((p) => p.id !== id);
   });
   done("/products");

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { ArrowUpRight, CalendarDays, ChartColumn, ChevronDown, Ellipsis, House, Leaf, ListOrdered, Package, Plus, Search, Sprout, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChartColumn, ChevronDown, Ellipsis, HeartPulse, House, Leaf, ListOrdered, Package, Plus, Search, Sprout, Wheat, type LucideIcon } from "lucide-react";
 import { ChiliIcon } from "./chili-icon";
 import { cn } from "@/lib/format";
 
@@ -11,23 +11,25 @@ type Item = { href: string; label: string; icon: LucideIcon };
 const MAIN: Item[] = [
   { href: "/", label: "Overview", icon: House },
   { href: "/timeline", label: "Activity log", icon: ListOrdered },
+  { href: "/batches", label: "Batches", icon: Sprout },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/problems", label: "Plant health", icon: Sprout },
+  { href: "/problems", label: "Plant health", icon: HeartPulse },
 ];
 const RESOURCES: Item[] = [
   { href: "/products", label: "Products", icon: Package },
+  { href: "/varieties", label: "Varieties", icon: Wheat },
   { href: "/reports", label: "Insights & reports", icon: ChartColumn },
 ];
 const MOBILE = [
   { href: "/", label: "Home", icon: House },
   { href: "/timeline", label: "Journal", icon: ListOrdered },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/problems", label: "Health", icon: Sprout },
+  { href: "/batches", label: "Batches", icon: Sprout },
+  { href: "/problems", label: "Health", icon: HeartPulse },
   { href: "/more", label: "More", icon: Ellipsis },
 ];
 function isActive(path: string, href: string) {
   if (href === "/") return path === "/";
-  if (href === "/more") return ["/more", "/products", "/reports"].some(p => path.startsWith(p));
+  if (href === "/more") return ["/more", "/products", "/reports", "/calendar", "/varieties"].some(p => path.startsWith(p));
   if (href === "/timeline") return path.startsWith(href) || path.startsWith("/entries");
   return path.startsWith(href);
 }

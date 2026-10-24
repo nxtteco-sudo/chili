@@ -1,4 +1,4 @@
-import { FERT_METHOD_LABEL, WATER_METHOD_LABEL } from "./entry-meta";
+import { FERT_METHOD_LABEL } from "./entry-meta";
 import { formatQty } from "./format";
 import type { Activity, Product } from "./types";
 
@@ -11,7 +11,6 @@ export function describeActivity(a: Activity, products: Product[]) {
     return {
       title: productName(s.productId),
       detail: `${formatQty(s.dosePerTank, s.doseUnit)}/tong × ${s.tanks} tong · ${s.target}`,
-      cost: s.costRm,
     };
   }
   if (a.type === "fertilizer") {
@@ -19,15 +18,18 @@ export function describeActivity(a: Activity, products: Product[]) {
     return {
       title: productName(f.productId),
       detail: `${formatQty(f.quantity, f.unit)} · ${FERT_METHOD_LABEL[f.method]}`,
-      cost: f.costRm,
     };
   }
-  const w = a.water;
+  const t = a.tankMix;
+  const readings = [t.ec !== undefined && `EC ${t.ec}`, t.ph !== undefined && `pH ${t.ph}`].filter(Boolean);
   return {
-    title: `${WATER_METHOD_LABEL[w.method]}${w.durationMin ? ` ${w.durationMin} min` : ""}`,
-    detail: [w.volumeL && `~${formatQty(w.volumeL, "L")}`, w.rained && "Light rain"]
+    title: `AB tank: A ${formatQty(t.aAmount, t.abUnit)} + B ${formatQty(t.bAmount, t.abUnit)}`,
+    detail: [
+      formatQty(t.waterL, "L water"),
+      ...readings,
+      t.additives.length > 0 && `+ ${t.additives.map((x) => productName(x.productId)).join(", ")}`,
+    ]
       .filter(Boolean)
-      .join(" · ") || "Watered",
-    cost: 0,
+      .join(" · "),
   };
 }
