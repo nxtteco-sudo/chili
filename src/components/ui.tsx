@@ -15,10 +15,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex items-end justify-between gap-3">
+    <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-[28px]">{title}</h1>
-        {subtitle && <p className="mt-1 text-[15px] text-ink-2">{subtitle}</p>}
+        <h1 className="editorial text-[34px] leading-tight md:text-[42px]">{title}</h1>
+        {subtitle && <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{subtitle}</p>}
       </div>
       {action}
     </header>
@@ -33,7 +33,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-2xl border border-line bg-surface", className)}>
+    <section className={cn("premium-card rounded-2xl border border-line bg-surface", className)}>
       {children}
     </section>
   );
@@ -42,7 +42,7 @@ export function Card({
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 className="text-[17px] font-semibold">{children}</h2>
+      <h2 className="text-base md:text-[15px] font-semibold tracking-[-.02em]">{children}</h2>
       {action}
     </div>
   );
@@ -128,9 +128,9 @@ export function Chips({
           href={it.href}
           scroll={false}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+            "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[13px] transition-colors",
             it.active
-              ? "border-transparent bg-ink text-bg"
+              ? "border-accent/10 bg-accent-soft font-medium text-accent"
               : "border-line bg-surface text-ink-2 hover:text-ink",
           )}
         >
@@ -187,7 +187,7 @@ export function ButtonLink({
     <Link
       href={href}
       className={cn(
-        "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition-colors",
+        "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors",
         variant === "primary"
           ? "bg-accent text-accent-ink hover:opacity-90"
           : "border border-line bg-surface text-ink hover:bg-surface-2",

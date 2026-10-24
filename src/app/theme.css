@@ -1,0 +1,127 @@
+/* App-owned light theme, independent of the system appearance. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f8f9f5;
+  --surface: #ffffff;
+  --surface-2: #f2f4ee;
+  --ink: #243b30;
+  --ink-2: #647168;
+  --muted: #6d796f;
+  --line: #e7ebe3;
+  --grid: #edf0e9;
+  --axis: #d7dfd3;
+  --accent: #315c41;
+  --accent-ink: #ffffff;
+  --accent-soft: #eaf0e4;
+  --water: #5c8eab;
+  --spray: #cf8955;
+  --baja: #63865a;
+  --problem: #ba6551;
+  --water-soft: #edf4f7;
+  --spray-soft: #faf0e5;
+  --baja-soft: #eff4e8;
+  --problem-soft: #fbefea;
+  --good: #537b48;
+  --good-ink: #416438;
+  --good-soft: #edf3e6;
+  --warn: #c4914b;
+  --warn-ink: #8b6631;
+  --warn-soft: #fbf5e8;
+  --serious: #cf8955;
+}
+
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection { background: #dce8d1; color: #243b30; }
+:focus-visible { outline: 2px solid #6c8b57; outline-offset: 4px; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), select { cursor: pointer; }
+button, a { touch-action: manipulation; }
+html { scroll-behavior: smooth; }
+body { font-size: 14px; }
+.editorial { font-family: Georgia, "Times New Roman", serif; font-weight: 400; letter-spacing: -.045em; }
+.app-content { animation: enter-content .45s ease-out both; }
+.premium-card { box-shadow: 0 3px 14px #243b3003; }
+.metric-card { transition: transform .2s, border-color .2s, box-shadow .2s; }
+.metric-card:hover { transform: translateY(-3px); border-color: #c7d5bc; box-shadow: 0 8px 24px #243b3008; }
+.nav-item { transition: background .2s, color .2s; }
+.nav-item[aria-current="page"]::before { content: ""; height: 18px; width: 3px; position: absolute; left: -17px; background: #567746; border-radius: 0 3px 3px 0; }
+.botanical-art { overflow: visible; }
+@keyframes enter-content { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Phone reading sizes and safe areas for the installed home-screen app. */
+@media (max-width: 767px) {
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 100px; }
+  .app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: auto;
+    min-height: calc(68px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    background: #fdfefa;
+  }
+  .app-content { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  #main-content { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .app-content :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: 12px; line-height: 1.55; }
+  .app-content :is(.text-xs, .text-\[12px\], .text-\[13px\]) { font-size: 14px; line-height: 1.5; }
+  .app-content .text-sm { font-size: 15px; }
+  .app-content input, .app-content select, .app-content textarea { font-size: 16px; min-width: 0; max-width: 100%; }
+  .app-content input[type="date"], .app-content input[type="time"] { display: block; -webkit-appearance: none; }
+  .app-content input[type="checkbox"] { flex-shrink: 0; }
+  .app-content h1 { font-size: 34px; overflow-wrap: break-word; }
+  .app-content h2 { overflow-wrap: break-word; }
+  .app-content fieldset { min-width: 0; }
+  .app-content .metric-card { padding: 18px; }
+  .app-content a:active { opacity: .8; }
+  .metric-card:hover { transform: none; }
+  .farm-hero { min-height: 0; }
+  .farm-hero-copy { max-width: 100%; padding: 24px; }
+  .farm-hero-copy h2 { font-size: 32px; }
+  .farm-hero-art { display: none; }
+  .app-content .truncate { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .app-content footer { font-size: 12px; }
+  .app-content a[href="/timeline"].border-t { min-height: 48px; }
+}
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y: none; }
+}
+
+@media (max-width: 767px) {
+  .product-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px 12px; padding: 18px 16px; }
+  .product-row > :first-child { grid-row: span 2; align-self: start; }
+  .product-row > :last-child { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; text-align: left; }
+}
+
+@media (max-width: 767px) {
+  .dashboard-home { display: flex; flex-direction: column; gap: 20px; }
+  .dashboard-home > * { margin-block: 0; }
+  .dashboard-home > header { order: 0; }
+  .dashboard-metrics { order: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-home .metric-card { padding: 16px; }
+  .dashboard-home .metric-card > p:first-of-type { font-size: 24px; }
+  .harvest-notice { order: 2; }
+  .farm-hero { order: 3; }
+  .dashboard-analysis { order: 4; }
+  .dashboard-recent { order: 5; }
+  .farm-hero-copy { padding: 20px; }
+  .farm-hero-copy h2 { font-size: 28px; }
+  .farm-hero-copy > p { display: none; }
+  .farm-hero-copy > a { min-height: 44px; margin-top: 8px; }
+}
+@media (max-width: 380px) {
+  .app-content fieldset .grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
+}

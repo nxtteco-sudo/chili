@@ -21,7 +21,7 @@ export function SearchForm({
         name="q"
         defaultValue={q}
         placeholder={placeholder}
-        className="h-11 w-full rounded-xl border border-line bg-surface pl-10 pr-3 text-base outline-none placeholder:text-muted focus:border-accent"
+        aria-label={placeholder} className="h-12 w-full rounded-xl border border-line bg-surface pl-10 pr-3 text-base md:text-sm shadow-sm shadow-ink/[.02] outline-none placeholder:text-muted focus:border-accent"
       />
     </form>
   );

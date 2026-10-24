@@ -17,7 +17,7 @@ export default function ProductsPage() {
         subtitle="Racun & baja: prices, waiting periods and how much was used"
         action={
           <ButtonLink href="/products/new">
-            <Plus className="size-5" /> <span className="max-sm:hidden">Add product</span>
+            <Plus className="size-5" /> <span>Add product</span>
           </ButtonLink>
         }
       />
@@ -58,7 +58,7 @@ function ProductRow({ usage: u, today }: { usage: ProductUsage; today: string })
   const p = u.product;
   return (
     <li>
-      <Link href={`/products/${p.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
+      <Link href={`/products/${p.id}`} className="product-row flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
         <TypeIcon type={p.category === "pesticide" ? "spray" : "fertilizer"} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium">{p.name}</p>

@@ -20,7 +20,7 @@ export default function ProblemsPage(props: PageProps<"/problems">) {
         subtitle="Masalah & penyelesaian: what went wrong and what fixed it"
         action={
           <ButtonLink href="/problems/new">
-            <Plus className="size-5" /> <span className="max-sm:hidden">New problem</span>
+            <Plus className="size-5" /> <span>New problem</span>
           </ButtonLink>
         }
       />

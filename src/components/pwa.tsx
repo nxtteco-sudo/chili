@@ -84,14 +84,14 @@ export function InstallHint({ always = false }: { always?: boolean }) {
               setEvent(null);
               dismiss();
             }}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-accent-ink"
+            className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-accent-ink"
           >
             <Download className="size-4" /> Install
           </button>
         )}
       </div>
       {!always && (
-        <button onClick={dismiss} aria-label="Dismiss" className="-m-1 p-1 text-muted hover:text-ink">
+        <button onClick={dismiss} aria-label="Dismiss" className="-m-2 grid size-11 shrink-0 place-items-center text-muted hover:text-ink">
           <X className="size-4" />
         </button>
       )}

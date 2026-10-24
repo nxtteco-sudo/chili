@@ -19,20 +19,20 @@ export function ActivityRow({
   return (
     <Link
       href={`/entries/${activity.id}`}
-      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2"
+      className="group flex items-center gap-3 px-5 py-4 md:px-6 transition-colors hover:bg-surface-2"
     >
       <TypeIcon type={activity.type} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-[15px] font-medium">{title}</span>
+          <span className="truncate text-[12px] font-medium">{title}</span>
           {activity.problemId && <Link2 className="size-3.5 shrink-0 text-problem" aria-label="Linked to a problem" />}
           {activity.photos.length > 0 && <Camera className="size-3.5 shrink-0 text-muted" aria-label="Has photos" />}
         </div>
-        <p className="truncate text-sm text-ink-2">{detail}</p>
+        <p className="truncate text-[11px] text-ink-2">{detail}</p>
       </div>
       <div className="shrink-0 text-right">
-        <div className="tabular text-sm text-ink-2">{dateLabel ?? formatTime(activity.occurredAt)}</div>
-        {cost > 0 && <div className="tabular text-sm text-muted">{formatRm(cost)}</div>}
+        <div className="tabular text-[11px] text-ink-2">{dateLabel ?? formatTime(activity.occurredAt)}</div>
+        {cost > 0 && <div className="tabular text-[10px] text-muted">{formatRm(cost)}</div>}
       </div>
       <ChevronRight className="size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 max-md:hidden" />
     </Link>

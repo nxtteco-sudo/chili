@@ -111,7 +111,7 @@ export function Segmented<T extends string>({
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <fieldset className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+    <fieldset className="space-y-4 premium-card rounded-2xl border border-line bg-surface p-5 md:p-6">
       <legend className="sr-only">{title}</legend>
       <p className="text-[15px] font-semibold">{title}</p>
       {children}

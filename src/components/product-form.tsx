@@ -68,7 +68,7 @@ export function ProductForm({
       </Section>
 
       <Section title="Pack & price">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <FormField label="Pack size" error={err("packSize")}>
             <Input name="packSize" inputMode="decimal" defaultValue={product?.packSize} error={err("packSize")} />
           </FormField>

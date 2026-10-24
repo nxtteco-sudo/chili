@@ -6,11 +6,11 @@ import { ChiliIcon } from "./chili-icon";
 
 // Seeded demo photos have no file, so they get placeholder artwork.
 const ART: Record<NonNullable<Photo["subject"]>, { bg: string; Icon: typeof Leaf }> = {
-  leaf: { bg: "from-[#cfe6c3] to-[#8fbf7a] dark:from-[#2c4426] dark:to-[#1d2f19]", Icon: Leaf },
-  fruit: { bg: "from-[#f6d3c4] to-[#e08a68] dark:from-[#4a2a1f] dark:to-[#2e1913]", Icon: ChiliIcon as typeof Leaf },
-  pest: { bg: "from-[#e8e3cf] to-[#bdb38a] dark:from-[#3a3624] dark:to-[#25221a]", Icon: Bug },
-  plant: { bg: "from-[#dbe8c8] to-[#a6b98a] dark:from-[#33402a] dark:to-[#20291a]", Icon: Sprout },
-  field: { bg: "from-[#d5e3d0] to-[#8fae8a] dark:from-[#2a3a29] dark:to-[#1a2519]", Icon: Trees },
+  leaf: { bg: "from-[#cfe6c3] to-[#8fbf7a]", Icon: Leaf },
+  fruit: { bg: "from-[#f6d3c4] to-[#e08a68]", Icon: ChiliIcon as typeof Leaf },
+  pest: { bg: "from-[#e8e3cf] to-[#bdb38a]", Icon: Bug },
+  plant: { bg: "from-[#dbe8c8] to-[#a6b98a]", Icon: Sprout },
+  field: { bg: "from-[#d5e3d0] to-[#8fae8a]", Icon: Trees },
 };
 
 export function PhotoTile({
@@ -30,7 +30,7 @@ export function PhotoTile({
       ) : (
         <>
           <div className="absolute inset-0 grid place-items-center">
-            <art.Icon className="size-1/3 max-h-14 max-w-14 text-black/25 dark:text-white/25" />
+            <art.Icon className="size-1/3 max-h-14 max-w-14 text-black/25" />
           </div>
           <span className="absolute right-1.5 top-1.5 rounded bg-black/35 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
             Demo

@@ -81,7 +81,7 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
         <div className="mb-3 flex items-center justify-between">
           <Link
             href={href("/calendar", { m: addMonths(month, -1) })}
-            className="grid size-10 place-items-center rounded-lg hover:bg-surface-2"
+            className="grid size-11 place-items-center rounded-lg hover:bg-surface-2"
             aria-label="Previous month"
           >
             <ChevronLeft className="size-5" />
@@ -89,7 +89,7 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
           <h2 className="text-[17px] font-semibold">{formatMonth(month)}</h2>
           <Link
             href={href("/calendar", { m: addMonths(month, 1) })}
-            className="grid size-10 place-items-center rounded-lg hover:bg-surface-2"
+            className="grid size-11 place-items-center rounded-lg hover:bg-surface-2"
             aria-label="Next month"
           >
             <ChevronRight className="size-5" />
@@ -108,8 +108,10 @@ async function Calendar({ searchParams }: { searchParams: PageProps<"/calendar">
                 key={key}
                 href={href("/calendar", { m: month, d: key })}
                 scroll={false}
+                aria-label={formatFull(key)}
+                aria-current={key === today ? "date" : undefined}
                 className={cn(
-                  "flex aspect-square flex-col items-center justify-center gap-1 rounded-xl text-[15px] transition-colors sm:aspect-[5/4]",
+                  "flex min-h-11 aspect-square flex-col items-center justify-center gap-1 rounded-xl text-[15px] transition-colors sm:aspect-[5/4]",
                   key === selected ? "bg-ink text-bg" : "hover:bg-surface-2",
                   key === today && key !== selected && "font-semibold text-accent ring-1 ring-accent ring-inset",
                   key > today && "text-muted",

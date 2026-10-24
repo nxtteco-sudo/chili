@@ -34,15 +34,15 @@ function ChartCard({
 }) {
   const [showTable, setShowTable] = useState(false);
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4">
+    <section className="premium-card rounded-2xl border border-line bg-surface p-5 md:p-6">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[17px] font-semibold">{title}</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
           {subtitle && <p className="text-sm text-ink-2">{subtitle}</p>}
         </div>
         <button
           onClick={() => setShowTable((v) => !v)}
-          className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-sm text-ink-2 hover:text-ink"
+          className="min-h-11 shrink-0 rounded-lg border border-line px-2.5 py-1 text-sm text-ink-2 hover:text-ink"
           aria-pressed={showTable}
         >
           {showTable ? "Chart" : "Table"}
@@ -58,7 +58,7 @@ function ChartCard({
           ))}
         </ul>
       )}
-      {showTable ? table : children}
+      {showTable ? <div className="overflow-x-auto">{table}</div> : children}
     </section>
   );
 }
@@ -143,7 +143,7 @@ export function StackedColumns({
                 aria-label={`${d.label}: ${rm(totals[i])}`}
               >
                 {active === i && <div className="absolute -top-6 bottom-0 left-1/2 w-10 -translate-x-1/2 rounded-md bg-ink/5" />}
-                <div className="relative w-6" style={{ height: `${(totals[i] / max) * 100}%` }}>
+                <div className="relative w-7 sm:w-9" style={{ height: `${(totals[i] / max) * 100}%` }}>
                   <span className="tabular absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap text-xs text-ink-2">
                     {Math.round(totals[i]).toLocaleString("en-MY")}
                   </span>
@@ -155,7 +155,7 @@ export function StackedColumns({
                       return (
                         <div
                           key={s.key}
-                          className={cn(isTop && "rounded-t-[4px]")}
+                          className={cn(isTop && "rounded-t-[5px]")}
                           style={{ background: s.color, flexGrow: v, flexBasis: 0 }}
                         />
                       );
