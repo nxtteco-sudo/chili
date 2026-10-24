@@ -41,7 +41,6 @@ async function Home() {
         <Link href="/log" className="mt-5 inline-flex w-fit items-center gap-3 text-[11px] font-semibold text-accent">Log today&apos;s activity <ArrowRight className="size-3.5" /></Link>
       </div>
       <div className="farm-hero-art absolute -right-16 bottom-0 h-[225px] w-[355px] opacity-80 sm:right-2 sm:h-[255px] sm:w-[440px] sm:opacity-100 lg:right-6"><GardenArt /></div>
-      <span className="absolute bottom-5 right-6 hidden text-[9px] uppercase tracking-[.18em] text-[#8a9676] lg:block">Rooted in everyday care</span>
     </section>
 
     <div className="dashboard-metrics grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -70,7 +69,7 @@ async function Home() {
       )}
     </section>
 
-    <div className="dashboard-analysis grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
+    <div className="dashboard-analysis grid grid-cols-1 items-start gap-5 xl:grid-cols-[1.65fr_1fr]">
       <LineChart title="Tank EC" subtitle="Each new AB tank, last 60 days · tap a point to open it" unit="mS/cm" color="var(--water)" points={ecSeries.flatMap(s => s.ec !== undefined ? [{ date: s.date, value: s.ec, href: `/entries/${s.activityId}` }] : [])} events={problemEvents} />
       <Card className="flex flex-col p-5 md:p-6">
         <SectionTitle action={<Link href="/calendar" aria-label="View activity calendar" className="text-muted hover:text-accent"><ArrowUpRight className="size-4" /></Link>}>A week on the farm</SectionTitle>
@@ -92,7 +91,7 @@ async function Home() {
       <Card className="p-5 md:p-6">
         <SectionTitle action={<span className="rounded-full bg-problem-soft px-2 py-0.5 text-[10px] text-problem">{openProblems.length} open</span>}>A little extra attention</SectionTitle>
         <p className="mb-5 text-[11px] text-muted">Keep an eye on these plants.</p>
-        {openProblems.length === 0 ? <p className="rounded-xl bg-good-soft p-4 text-sm text-good-ink">All looking good. No open problems.</p> : <ul className="divide-y divide-line">{openProblems.slice(0, 4).map(p => <li key={p.id}><Link href={`/problems/${p.id}`} className="group block py-4 first:pt-0"><div className="mb-2 flex items-start justify-between gap-2"><span className="flex size-9 items-center justify-center rounded-xl border border-[#e4e9dc] bg-[#f2f4eb]"><Sprout className="size-[18px] text-[#7c8e64]" strokeWidth={1.4} /></span><StatusBadge problem={p} /></div><h3 className="text-[13px] font-medium leading-relaxed group-hover:text-accent">{p.title}</h3><p className="mt-1 text-[10px] text-muted">Found {relativeDay(p.foundOn, today).toLowerCase()} · {p.severity} severity</p><div className="mt-3 flex items-center justify-between"><span className="text-[10px] text-ink-2">{p.updates.length} updates recorded</span><ArrowUpRight className="size-3.5 text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></div></Link></li>)}</ul>}
+        {openProblems.length === 0 ? <p className="rounded-xl bg-good-soft p-4 text-sm text-good-ink">All looking good. No open problems.</p> : <ul className="divide-y divide-line">{openProblems.slice(0, 4).map(p => <li key={p.id} className="py-4 first:pt-0 last:pb-0"><Link href={`/problems/${p.id}`} className="group block"><div className="mb-2 flex items-start justify-between gap-2"><span className="flex size-9 items-center justify-center rounded-xl border border-[#e4e9dc] bg-[#f2f4eb]"><Sprout className="size-[18px] text-[#7c8e64]" strokeWidth={1.4} /></span><StatusBadge problem={p} /></div><h3 className="text-[13px] font-medium leading-relaxed group-hover:text-accent">{p.title}</h3><p className="mt-1 text-[10px] text-muted">Found {relativeDay(p.foundOn, today).toLowerCase()} · {p.severity} severity</p><div className="mt-3 flex items-center justify-between"><span className="text-[10px] text-ink-2">{p.updates.length} updates recorded</span><ArrowUpRight className="size-3.5 text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></div></Link></li>)}</ul>}
         <Link href="/problems" className="mt-4 flex items-center justify-between border-t border-line pt-4 text-[11px] font-medium text-accent">Open plant health <ArrowRight className="size-3.5" /></Link>
       </Card>
     </div>
