@@ -1,4 +1,4 @@
-import { FERT_METHOD_LABEL } from "./entry-meta";
+import { FERT_METHOD_LABEL } from "./labels";
 import { formatQty } from "./format";
 import type { Activity, Product } from "./types";
 

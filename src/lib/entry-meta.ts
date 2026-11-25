@@ -1,5 +1,5 @@
 import { Droplets, Leaf, SprayCan, TriangleAlert, type LucideIcon } from "lucide-react";
-import type { EntryType, FertilizerDetails, Outcome, Problem } from "./types";
+import type { EntryType, Outcome, Problem } from "./types";
 
 export const ENTRY_META: Record<
   EntryType,
@@ -23,9 +23,4 @@ export const SEVERITY_LABEL: Record<Problem["severity"], string> = {
   high: "High",
 };
 
-export const FERT_METHOD_LABEL: Record<FertilizerDetails["method"], string> = {
-  foliar: "Foliar spray",
-  tabur: "Tabur (spread)",
-  siram: "Siram (poured)",
-  other: "Other",
-};
+export { FERT_METHOD_LABEL } from "./labels";
