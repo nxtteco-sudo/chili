@@ -8,16 +8,33 @@ import type { Catalog } from "@/lib/bot/store";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-5.4-mini";
 
-export type AiEntry = { type: "spray" | "tank_mix" | "fertilizer"; fields: Record<string, unknown> };
+export type NewProduct = { name: string; category: "pesticide" | "fertilizer"; unit: string };
+
+export type AiEntry =
+  | { type: "spray" | "tank_mix" | "fertilizer"; fields: Record<string, unknown> }
+  | { type: "products"; products: NewProduct[] };
 
 const nullable = (type: string, extra: object = {}) => ({ type: [type, "null"], ...extra });
 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["type", "daysAgo", "productName", "unit", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method"],
+  required: ["type", "products", "daysAgo", "productName", "unit", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method"],
   properties: {
-    type: { type: "string", enum: ["spray", "tank_mix", "fertilizer", "unknown"] },
+    type: { type: "string", enum: ["spray", "tank_mix", "fertilizer", "products", "unknown"] },
+    products: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "category", "unit"],
+        properties: {
+          name: { type: "string" },
+          category: { type: "string", enum: ["pesticide", "fertilizer"] },
+          unit: { type: "string", enum: ["ml", "g", "L", "kg"] },
+        },
+      },
+    },
     daysAgo: nullable("integer"),
     productName: nullable("string"),
     unit: nullable("string", { enum: ["ml", "g", "L", "kg", null] }),
@@ -45,7 +62,10 @@ Decide the entry type:
 - "spray": spraying pesticide (sembur, racun, spray, drench a product).
 - "tank_mix": mixing a new AB fertilizer tank (baja A dan B, tangki, EC/pH readings).
 - "fertilizer": other fertilizer applied by hand or foliar, not through the drip tank (tabur, siram, baja daun).
+- "products": the farmer lists products he bought, received or wants added to his product list (beli, stock, tambah produk), without spraying anything. Fill "products" with one item per product. Leave it an empty list for every other type.
 - "unknown": anything else, or you cannot tell.
+
+For "products": name is the brand and product name tidied into normal capitalisation (e.g. "Bayer Antracol 70WP"), without the pack size. category is pesticide (insecticide, fungicide, miticide, herbicide) or fertilizer. unit is the unit doses are measured in: g for powders and granules (WP, WG, SP, WDG, kg packs), ml for liquids (SC, EC, SL, litre packs), kg for fertilizers.
 
 Rules:
 - Only fill what the message actually says. Use null for anything not stated. Never guess numbers.
@@ -82,8 +102,13 @@ export async function parseLogMessage(text: string, catalog: Catalog, today: str
       return null;
     }
     const parsed = JSON.parse((await res.json()).choices[0].message.content) as Record<string, unknown>;
+    if (parsed.type === "products") {
+      const products = (parsed.products as NewProduct[]).filter((p) => p.name.trim()).slice(0, 20);
+      return products.length ? { type: "products", products } : null;
+    }
     if (parsed.type !== "spray" && parsed.type !== "tank_mix" && parsed.type !== "fertilizer") return null;
     const { type, productName, unit, ...rest } = parsed;
+    delete rest.products;
     const fields: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rest)) if (v !== null) fields[k] = v;
     if (typeof productName === "string") fields.productName = productName;

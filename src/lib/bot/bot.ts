@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Bot, InlineKeyboard, Keyboard, session, type Context, type SessionFlavor } from "grammy";
 import { dayKey, formatShort } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
@@ -215,6 +216,17 @@ export function createBot(token: string) {
     await ctx.replyWithChatAction("typing");
     const entry = await parseLogMessage(text, catalog, makeCtx({}, catalog).today);
     if (!entry) return ctx.reply("Tak faham lagi 😅 Cuba taip macam: sembur Movento 20ml satu tong, 4 tong, thrips\n(Couldn't read that. Or use /menu for buttons.)");
+    if (entry.type === "products") {
+      const have = new Set(catalog.products.map((p) => p.name.toLowerCase()));
+      const fresh = entry.products.filter((p, i) => !have.has(p.name.toLowerCase()) && entry.products.findIndex((q) => q.name.toLowerCase() === p.name.toLowerCase()) === i);
+      for (const p of fresh) await saveProduct({ id: randomUUID(), name: p.name.trim(), category: p.category, subtype: "Other", unit: p.unit });
+      const skipped = entry.products.length - fresh.length;
+      return ctx.reply(
+        fresh.length
+          ? `✅ Produk ditambah (${fresh.length}):\n${fresh.map((p) => `• ${p.name} (${p.unit})`).join("\n")}${skipped ? `\n\n(${skipped} dah ada dalam senarai.)` : ""}\n\nIsi tempoh selamat di dashboard. (Fill in waiting periods on the dashboard.)`
+          : "Semua produk tu dah ada dalam senarai. (Those products are already in the list.)",
+      );
+    }
     const flow = FLOWS[entry.type];
     ctx.session = { flow: flow.id, step: 0, draft: prefill(flow, entry.fields, catalog), values: [], raw: text };
     await ctx.reply(`🤖 Saya faham ini ${flow.title}.`);
