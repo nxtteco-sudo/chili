@@ -1,5 +1,5 @@
 -- Kebun Cili: initial schema (Phase 2).
--- Run once in Supabase → SQL Editor. Safe to re-run: everything is "if not exists".
+-- Run once in Supabase → SQL Editor, then 0002_grants.sql. Both are safe to re-run.
 --
 -- Access model: one farm. Only users listed in farm_members can read or write
 -- anything, enforced by Row Level Security, so the public anon key is useless

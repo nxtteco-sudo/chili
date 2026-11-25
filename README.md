@@ -12,15 +12,15 @@ See [PROJECT.md](PROJECT.md) for the full plan.
    NEXT_PUBLIC_SUPABASE_ANON_KEY=...
    SUPABASE_SERVICE_ROLE_KEY=...   # secret, server-only
    ```
-2. In Supabase → SQL Editor, run `supabase/migrations/0001_init.sql` (safe to re-run).
+2. In Supabase → SQL Editor, run `supabase/migrations/0001_init.sql`, then `0002_grants.sql`
+   (both safe to re-run; newer projects need 0002 or every table says "permission denied").
 3. Supabase → Authentication: turn off "Allow new users to sign up", add users (auto-confirm),
    then add each to the member list:
    ```sql
    insert into public.farm_members (user_id, name, role)
    select id, 'Name', 'admin' from auth.users where email = 'you@example.com';
    ```
-4. `pnpm install && pnpm dev`, log in at http://localhost:3000, and use
-   **More → Reset to demo data** to load the demo farm.
+4. `pnpm install && pnpm dev` and log in at http://localhost:3000. The farm starts empty.
 
 ## Where things are
 
