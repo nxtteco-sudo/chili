@@ -2,7 +2,6 @@
 //   pnpm bot:webhook https://your-app.vercel.app
 import { Bot } from "grammy";
 
-process.loadEnvFile(".env.local");
 const { TELEGRAM_BOT_TOKEN: token, TELEGRAM_WEBHOOK_SECRET: secret } = process.env;
 const base = process.argv[2];
 if (!token || !secret || !base?.startsWith("https://")) {
@@ -10,10 +9,17 @@ if (!token || !secret || !base?.startsWith("https://")) {
   process.exit(1);
 }
 
-const bot = new Bot(token);
-await bot.api.setWebhook(`${base.replace(/\/$/, "")}/api/telegram`, {
-  secret_token: secret,
-  allowed_updates: ["message", "callback_query"],
-  drop_pending_updates: true,
+async function main() {
+  const bot = new Bot(token!);
+  await bot.api.setWebhook(`${base.replace(/\/$/, "")}/api/telegram`, {
+    secret_token: secret,
+    allowed_updates: ["message", "callback_query"],
+    drop_pending_updates: true,
+  });
+  console.log(await bot.api.getWebhookInfo());
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });
-console.log(await bot.api.getWebhookInfo());

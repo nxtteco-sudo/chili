@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "bot:dev": "tsx --conditions react-server scripts/bot-dev.ts",
-    "bot:webhook": "tsx --conditions react-server scripts/bot-webhook.ts"
+    "bot:dev": "tsx --env-file=.env.local --conditions react-server scripts/bot-dev.ts",
+    "bot:webhook": "tsx --env-file=.env.local --conditions react-server scripts/bot-webhook.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
