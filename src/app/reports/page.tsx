@@ -116,7 +116,9 @@ async function Reports() {
             <RefreshCcw className="size-4 text-muted" /> Pesticide rotation
           </span>
         </SectionTitle>
-        {rotation.warnings.length > 0 ? (
+        {rotation.recent.length === 0 ? (
+          <p className="text-[15px] text-muted">No sprays logged yet.</p>
+        ) : rotation.warnings.length > 0 ? (
           <div className="mb-4 space-y-2">
             {rotation.warnings.map((w) => (
               <p key={w.ingredient} className="flex items-start gap-2 rounded-xl bg-warn-soft px-3.5 py-3 text-[15px] text-warn-ink">
@@ -133,7 +135,7 @@ async function Reports() {
             <ShieldCheck className="size-5 shrink-0" /> Good rotation. No active ingredient used 3 times in the last 5 sprays.
           </p>
         )}
-        <p className="mb-2 text-sm text-ink-2">Last sprays, newest first</p>
+        {rotation.recent.length > 0 && <p className="mb-2 text-sm text-ink-2">Last sprays, newest first</p>}
         <ol className="flex flex-wrap gap-2">
           {rotation.recent.map((r) => (
             <li key={r.activity.id}>
@@ -154,41 +156,47 @@ async function Reports() {
 
       <Card className="p-5 md:p-6">
         <SectionTitle>Batch comparison</SectionTitle>
-        <div className="overflow-x-auto">
-          <table className="tabular w-full min-w-[560px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-muted">
-                <th className="py-2 font-normal">Batch</th>
-                <th className="py-2 font-normal">Variety</th>
-                <th className="py-2 font-normal">Stage</th>
-                <th className="py-2 text-right font-normal">Days to flower</th>
-                <th className="py-2 text-right font-normal">Days to 1st harvest</th>
-                <th className="py-2 text-right font-normal">Problems</th>
-                <th className="py-2 text-right font-normal">Sprays</th>
-              </tr>
-            </thead>
-            <tbody>
-              {batches.map(({ batch: b, variety, info }) => (
-                <tr key={b.id} className="border-b border-line last:border-0">
-                  <td className="py-2.5">
-                    <Link href={`/batches/${b.id}`} className="font-medium text-accent hover:underline">
-                      {b.name}
-                    </Link>
-                  </td>
-                  <td className="py-2.5 text-ink-2">{variety?.name ?? "—"}</td>
-                  <td className="py-2.5 text-ink-2">{STAGE_META[info.stage].label}</td>
-                  <td className="py-2.5 text-right">{daysAfter(b.transplantedOn, b.firstFlowerOn)}</td>
-                  <td className="py-2.5 text-right">{daysAfter(b.transplantedOn, b.firstHarvestOn)}</td>
-                  <td className="py-2.5 text-right">{problems.filter((p) => p.batchId === b.id).length}</td>
-                  <td className="py-2.5 text-right">
-                    <CountSprays batchId={b.id} />
-                  </td>
+        {batches.length === 0 ? (
+          <p className="text-[15px] text-muted">No batches yet.</p>
+        ) : (
+          <>
+          <div className="overflow-x-auto">
+            <table className="tabular w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-muted">
+                  <th className="py-2 font-normal">Batch</th>
+                  <th className="py-2 font-normal">Variety</th>
+                  <th className="py-2 font-normal">Stage</th>
+                  <th className="py-2 text-right font-normal">Days to flower</th>
+                  <th className="py-2 text-right font-normal">Days to 1st harvest</th>
+                  <th className="py-2 text-right font-normal">Problems</th>
+                  <th className="py-2 text-right font-normal">Sprays</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-xs text-muted">Days are counted from moving to polybag.</p>
+              </thead>
+              <tbody>
+                {batches.map(({ batch: b, variety, info }) => (
+                  <tr key={b.id} className="border-b border-line last:border-0">
+                    <td className="py-2.5">
+                      <Link href={`/batches/${b.id}`} className="font-medium text-accent hover:underline">
+                        {b.name}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 text-ink-2">{variety?.name ?? "—"}</td>
+                    <td className="py-2.5 text-ink-2">{STAGE_META[info.stage].label}</td>
+                    <td className="py-2.5 text-right">{daysAfter(b.transplantedOn, b.firstFlowerOn)}</td>
+                    <td className="py-2.5 text-right">{daysAfter(b.transplantedOn, b.firstHarvestOn)}</td>
+                    <td className="py-2.5 text-right">{problems.filter((p) => p.batchId === b.id).length}</td>
+                    <td className="py-2.5 text-right">
+                      <CountSprays batchId={b.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-muted">Days are counted from moving to polybag.</p>
+          </>
+        )}
       </Card>
 
       <Card className="p-5 md:p-6">
@@ -204,7 +212,7 @@ async function Reports() {
               value={problems.length - resolved.length}
             />
             <li className="border-t border-line pt-2 text-sm text-ink-2">
-              Average time to close: <b className="font-medium text-ink">{avgDays} days</b>
+              Average time to close: <b className="font-medium text-ink">{resolved.length ? `${avgDays} days` : "—"}</b>
             </li>
           </ul>
           <div>

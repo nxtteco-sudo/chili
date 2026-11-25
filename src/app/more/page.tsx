@@ -2,9 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CalendarDays, ChartColumn, ChevronRight, FileSpreadsheet, LogOut, Package, Plus, Send, UserRound, Wheat } from "lucide-react";
-import { resetDemoData } from "@/app/actions";
 import { signOut } from "@/app/login/actions";
-import { DeleteButton } from "@/components/form-ui";
 import { InstallHint } from "@/components/pwa";
 import { Card, PageHeader, SectionTitle } from "@/components/ui";
 import { getMember } from "@/lib/auth";
@@ -100,22 +98,6 @@ export default function MorePage() {
           </Card>
         </section>
 
-        <section>
-          <SectionTitle>Demo data</SectionTitle>
-          <Card className="p-4">
-            <p className="text-[15px] text-ink-2">
-              The farm records are saved online. Until dad starts logging for real, this resets everything
-              to the demo farm. All entries and photos are replaced, for both of you.
-            </p>
-            <DeleteButton
-              action={resetDemoData}
-              fields={{}}
-              label="Reset to demo data"
-              confirmText="Delete ALL farm records and photos online and load the demo farm? This can't be undone."
-              className="-ml-4 mt-2"
-            />
-          </Card>
-        </section>
       </div>
     </>
   );

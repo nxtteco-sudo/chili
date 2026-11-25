@@ -79,7 +79,7 @@ function TopBarView({ pathname }: { pathname: string }) {
     <div className="flex items-center gap-3 sm:gap-5">
       <Link href="/timeline" className="flex min-h-11 min-w-11 items-center justify-center gap-2 text-muted transition-colors hover:text-accent" aria-label="Search farm records"><Search className="size-4" strokeWidth={1.6} /><span className="hidden text-[11px] lg:inline">Search your journal</span></Link>
       <span className="hidden h-5 w-px bg-line sm:block" />
-      <span className="hidden items-center gap-1.5 rounded-full bg-[#f3f4e9] px-2.5 py-1 text-[10px] text-[#72784e] sm:flex"><span className="size-1.5 rounded-full bg-[#9aa76c]" />Demo farm</span>
+      <span className="hidden items-center gap-1.5 rounded-full bg-[#f3f4e9] px-2.5 py-1 text-[10px] text-[#72784e] sm:flex"><span className="size-1.5 rounded-full bg-[#9aa76c]" />Saved online</span>
       <Link href="/log" className="flex h-11 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-[#244b33]"><Plus className="size-3.5" />Add entry</Link>
     </div>
   </div>;

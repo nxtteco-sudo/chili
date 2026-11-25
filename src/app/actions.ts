@@ -15,7 +15,6 @@ import {
   deleteVarietyRow,
   photoFileExists,
   readStore,
-  resetToDemo,
   saveActivityRow,
   saveBatchRow,
   saveProblemRow,
@@ -489,10 +488,3 @@ export async function deleteProduct(fd: FormData) {
   done("/products");
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────
-
-export async function resetDemoData() {
-  await requireMember();
-  await resetToDemo();
-  done("/");
-}

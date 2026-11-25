@@ -2,8 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { dayKey, farmIso } from "./dates";
-import { buildDemoData } from "./demo-data";
+import { farmIso } from "./dates";
 import { createClient } from "./supabase/server";
 import type { Activity, Batch, Photo, Problem, ProblemUpdate, Product, Variety } from "./types";
 
@@ -44,7 +43,7 @@ function check(error: { message: string } | null, what: string) {
 
 // ── Row ↔ app shape ───────────────────────────────────────────────────────
 
-const toProduct = (r: Row): Product => ({
+export const toProduct = (r: Row): Product => ({
   id: r.id as string,
   name: r.name as string,
   category: r.category as Product["category"],
@@ -86,7 +85,7 @@ const fromVariety = (v: Variety) => ({
   notes: v.notes ?? null,
 });
 
-const toBatch = (r: Row): Batch => ({
+export const toBatch = (r: Row): Batch => ({
   id: r.id as string,
   name: r.name as string,
   varietyId: opt(r.variety_id),
@@ -167,7 +166,7 @@ const fromProblem = (p: Problem) => ({
   photos: p.photos,
 });
 
-function toActivity(r: Row): Activity {
+export function toActivity(r: Row): Activity {
   const base = {
     id: r.id as string,
     occurredAt: farmIso(r.occurred_at as string),
@@ -182,7 +181,7 @@ function toActivity(r: Row): Activity {
   if (r.type === "tank_mix") return { ...base, type: "tank_mix", tankMix: details };
   return { ...base, type: "fertilizer", fertilizer: details };
 }
-const fromActivity = (a: Activity) => ({
+export const fromActivity = (a: Activity) => ({
   id: a.id,
   type: a.type,
   occurred_at: a.occurredAt,
@@ -294,39 +293,4 @@ export async function deletePhotoFiles(ids: string[]) {
   if (paths.length === 0) return;
   const sb = await createClient();
   await sb.storage.from(PHOTO_BUCKET).remove(paths);
-}
-
-// ── Demo data ─────────────────────────────────────────────────────────────
-
-// Wipes every farm record and photo, then loads fresh demo data. Only for the
-// demo period; Phase 7 replaces this with "clear demo data" at hand-over.
-export async function resetToDemo() {
-  const sb = await createClient();
-  for (const table of ["activities", "problem_updates", "problems", "batches", "varieties", "products"]) {
-    const { error } = await sb.from(table).delete().neq("id", "");
-    check(error, `Clearing ${table}`);
-  }
-  for (;;) {
-    const { data } = await sb.storage.from(PHOTO_BUCKET).list("", { limit: 1000 });
-    const names = (data ?? []).map((f) => f.name).filter((n) => n.endsWith(".jpg"));
-    if (names.length === 0) break;
-    await sb.storage.from(PHOTO_BUCKET).remove(names);
-  }
-
-  const demo = buildDemoData(dayKey(new Date()));
-  const insert = async (table: string, rows: Row[]) => {
-    const ids = new Set(rows.map((r) => r.id));
-    if (ids.size !== rows.length) throw new Error(`Demo data has duplicate ids in ${table}`);
-    for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await sb.from(table).insert(rows.slice(i, i + 500));
-      check(error, `Loading demo ${table}`);
-    }
-  };
-  await insert("products", demo.products.map(fromProduct));
-  await insert("varieties", demo.varieties.map(fromVariety));
-  await insert("batches", demo.batches.map(fromBatch));
-  await insert("problems", demo.problems.map(fromProblem));
-  // Demo update ids are only unique within a problem.
-  await insert("problem_updates", demo.problems.flatMap((p) => p.updates.map((u) => fromUpdate(p.id, { ...u, id: `${p.id}-${u.id}` }))));
-  await insert("activities", demo.activities.map(fromActivity));
 }

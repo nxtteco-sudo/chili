@@ -247,6 +247,7 @@ export function HorizontalBars({
         </table>
       }
     >
+      {data.length === 0 && <p className="py-8 text-center text-[15px] text-muted">Nothing logged yet.</p>}
       <ul className="space-y-2.5">
         {data.map((d, i) => (
           <li
