@@ -6,6 +6,7 @@ import { ButtonLink, Card, PageHeader, PageSkeleton, SectionTitle, TypeIcon } fr
 import { getProductUsage, getToday, type ProductUsage } from "@/lib/data";
 import { relativeDay } from "@/lib/dates";
 import { formatQty } from "@/lib/format";
+import { friendlyQty } from "@/lib/units";
 
 export const metadata: Metadata = { title: "Products" };
 
@@ -74,6 +75,12 @@ function ProductRow({ usage: u, today }: { usage: ProductUsage; today: string })
           <p className="text-sm text-muted">
             {u.uses ? `${u.uses}× · ${relativeDay(u.lastUsed!, today).toLowerCase()}` : "Not used yet"}
           </p>
+          {u.stock && (
+            <p className={`tabular text-sm font-medium ${u.stock.left <= 0 ? "text-warn-ink" : "text-ink-2"}`}>
+              Stock left {friendlyQty(Math.max(u.stock.left, 0), p.unit)}
+              <span className="font-normal text-muted"> of {friendlyQty(u.stock.bought, p.unit)}</span>
+            </p>
+          )}
         </div>
       </Link>
     </li>

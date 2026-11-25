@@ -8,11 +8,11 @@ import type { Catalog } from "@/lib/bot/store";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-5.4-mini";
 
-export type NewProduct = { name: string; category: "pesticide" | "fertilizer"; unit: string };
+export type NewProduct = { name: string; category: "pesticide" | "fertilizer"; unit: string; quantity?: number; quantityUnit?: string };
 
 export type AiEntry =
   | { type: "spray" | "tank_mix" | "fertilizer"; fields: Record<string, unknown> }
-  | { type: "products"; products: NewProduct[] };
+  | { type: "products"; products: NewProduct[]; daysAgo: number };
 
 const nullable = (type: string, extra: object = {}) => ({ type: [type, "null"], ...extra });
 
@@ -27,11 +27,13 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "category", "unit"],
+        required: ["name", "category", "unit", "quantity", "quantityUnit"],
         properties: {
           name: { type: "string" },
           category: { type: "string", enum: ["pesticide", "fertilizer"] },
           unit: { type: "string", enum: ["ml", "g", "L", "kg"] },
+          quantity: { type: ["number", "null"] },
+          quantityUnit: { type: ["string", "null"], enum: ["ml", "g", "L", "kg", null] },
         },
       },
     },
@@ -65,7 +67,7 @@ Decide the entry type:
 - "products": the farmer lists products he bought, received or wants added to his product list (beli, stock, tambah produk), without spraying anything. Fill "products" with one item per product. Leave it an empty list for every other type.
 - "unknown": anything else, or you cannot tell.
 
-For "products": name is the brand and product name tidied into normal capitalisation (e.g. "Bayer Antracol 70WP"), without the pack size. category is pesticide (insecticide, fungicide, miticide, herbicide) or fertilizer. unit is the unit doses are measured in: g for powders and granules (WP, WG, SP, WDG, kg packs), ml for liquids (SC, EC, SL, litre packs), kg for fertilizers.
+For "products": quantity is the total amount bought of that product and quantityUnit its unit, e.g. "BAYER INFINITO 1L" -> 1 and L, "2 botol Score 500ml" -> 1000 and ml, "ANTRACOL 1KG" -> 1 and kg. null if no amount is written. daysAgo (top level) is when it was bought: "semalam" = 1, today or not stated = 0. If a product is the same as one in the known list, use the list name exactly. name is the brand and product name tidied into normal capitalisation (e.g. "Bayer Antracol 70WP"), without the pack size. category is pesticide (insecticide, fungicide, miticide, herbicide) or fertilizer. unit is the unit doses are measured in: g for powders and granules (WP, WG, SP, WDG, kg packs), ml for liquids (SC, EC, SL, litre packs), kg for fertilizers.
 
 Rules:
 - Only fill what the message actually says. Use null for anything not stated. Never guess numbers.
@@ -103,8 +105,11 @@ export async function parseLogMessage(text: string, catalog: Catalog, today: str
     }
     const parsed = JSON.parse((await res.json()).choices[0].message.content) as Record<string, unknown>;
     if (parsed.type === "products") {
-      const products = (parsed.products as NewProduct[]).filter((p) => p.name.trim()).slice(0, 20);
-      return products.length ? { type: "products", products } : null;
+      const products = (parsed.products as (Omit<NewProduct, "quantity" | "quantityUnit"> & { quantity: number | null; quantityUnit: string | null })[])
+        .filter((p) => p.name.trim())
+        .slice(0, 20)
+        .map(({ quantity, quantityUnit, ...p }) => ({ ...p, ...(quantity && quantityUnit ? { quantity, quantityUnit } : {}) }));
+      return products.length ? { type: "products", products, daysAgo: typeof parsed.daysAgo === "number" ? parsed.daysAgo : 0 } : null;
     }
     if (parsed.type !== "spray" && parsed.type !== "tank_mix" && parsed.type !== "fertilizer") return null;
     const { type, productName, unit, ...rest } = parsed;

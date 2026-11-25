@@ -1,11 +1,14 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { Bot, InlineKeyboard, Keyboard, session, type Context, type SessionFlavor } from "grammy";
-import { dayKey, formatShort } from "@/lib/dates";
+import { addDays, atTime, dayKey, formatShort } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
+import { stockOf } from "@/lib/stock";
+import { convertQty, friendlyQty } from "@/lib/units";
+import type { Product, Purchase } from "@/lib/types";
 import { parseLogMessage } from "@/lib/ai/parse";
 import { FLOWS, makeCtx, pendingProduct, prefill, rows, type Draft, type Flow, type Option } from "./flows";
-import { deleteActivity, getTelegramUser, lastSavedActivity, loadCatalog, saveActivity, saveProduct, sessionStorage } from "./store";
+import { deleteActivity, deletePurchaseGroup, getTelegramUser, lastSavedActivity, loadCatalog, loadStockData, saveActivity, saveProduct, savePurchases, sessionStorage } from "./store";
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
@@ -161,6 +164,26 @@ export function createBot(token: string) {
   bot.command("recent", recent);
   bot.hears(MENU.recent, recent);
 
+  bot.command("stok", async (ctx) => {
+    const { products, purchases, activities } = await loadStockData();
+    const rows = products
+      .map((p) => ({ p, s: stockOf(p, purchases, activities) }))
+      .filter((r) => r.s.purchases > 0)
+      .sort((a, b) => a.p.name.localeCompare(b.p.name));
+    if (rows.length === 0) return ctx.reply("Belum ada stok dicatat. Hantar contoh: beli BAYER INFINITO 1L (No stock logged yet.)");
+    await ctx.reply(
+      rows
+        .map(({ p, s }) => `📦 ${p.name}\n    baki ${friendlyQty(Math.max(s.left, 0), p.unit)}  (beli ${friendlyQty(s.bought, p.unit)}, guna ${friendlyQty(s.used, p.unit)})`)
+        .join("\n\n"),
+    );
+  });
+
+  bot.callbackQuery(/^pd:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await deletePurchaseGroup(ctx.match[1]);
+    return ctx.editMessageText("🗑️ Stok dipadam. (Stock entries deleted. Products were kept.)");
+  });
+
   bot.command("dashboard", (ctx) =>
     ctx.reply(process.env.APP_URL ?? "Dashboard belum online lagi. (The dashboard isn't deployed yet.)"),
   );
@@ -217,14 +240,29 @@ export function createBot(token: string) {
     const entry = await parseLogMessage(text, catalog, makeCtx({}, catalog).today);
     if (!entry) return ctx.reply("Tak faham lagi 😅 Cuba taip macam: sembur Movento 20ml satu tong, 4 tong, thrips\n(Couldn't read that. Or use /menu for buttons.)");
     if (entry.type === "products") {
-      const have = new Set(catalog.products.map((p) => p.name.toLowerCase()));
-      const fresh = entry.products.filter((p, i) => !have.has(p.name.toLowerCase()) && entry.products.findIndex((q) => q.name.toLowerCase() === p.name.toLowerCase()) === i);
-      for (const p of fresh) await saveProduct({ id: randomUUID(), name: p.name.trim(), category: p.category, subtype: "Other", unit: p.unit });
-      const skipped = entry.products.length - fresh.length;
+      const made: Product[] = [];
+      const purchases: Purchase[] = [];
+      const lines: string[] = [];
+      const groupId = randomUUID();
+      const today = makeCtx({}, catalog).today;
+      const when = entry.daysAgo ? atTime(addDays(today, -entry.daysAgo), "08:00") : new Date().toISOString();
+      for (const item of entry.products) {
+        const name = item.name.trim();
+        let product = [...catalog.products, ...made].find((p) => p.name.toLowerCase() === name.toLowerCase());
+        const isNew = !product;
+        if (!product) {
+          product = { id: randomUUID(), name, category: item.category, subtype: "Other", unit: item.unit };
+          made.push(product);
+          await saveProduct(product);
+        }
+        const qty = item.quantity && item.quantityUnit ? convertQty(item.quantity, item.quantityUnit, product.unit) : undefined;
+        if (qty) purchases.push({ id: randomUUID(), productId: product.id, quantity: qty, unit: product.unit, occurredAt: when, groupId, rawMessage: text });
+        lines.push(`• ${product.name}${qty ? ` +${friendlyQty(qty, product.unit)}` : ""}${isNew ? " 🆕" : ""}`);
+      }
+      await savePurchases(purchases);
       return ctx.reply(
-        fresh.length
-          ? `✅ Produk ditambah (${fresh.length}):\n${fresh.map((p) => `• ${p.name} (${p.unit})`).join("\n")}${skipped ? `\n\n(${skipped} dah ada dalam senarai.)` : ""}\n\nIsi tempoh selamat di dashboard. (Fill in waiting periods on the dashboard.)`
-          : "Semua produk tu dah ada dalam senarai. (Those products are already in the list.)",
+        `✅ Dicatat: (Logged)\n${lines.join("\n")}\n\n🆕 = produk baru. Isi tempoh selamat di dashboard. Baki stok: /stok`,
+        purchases.length ? { reply_markup: new InlineKeyboard().text("↩️ Salah? Padam stok", `pd:${groupId}`) } : undefined,
       );
     }
     const flow = FLOWS[entry.type];

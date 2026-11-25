@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { batchInfo, isActiveBatch } from "./batches";
 import { addDays, dayKey, diffDays, monthKey } from "./dates";
 import { readStore } from "./db";
+import { stockOf, type Stock } from "./stock";
 import type { Activity, ActivityType, Batch, FarmData, Problem, Product } from "./types";
 
 // Every page reads through these functions. Data comes from Supabase via
@@ -18,6 +19,7 @@ async function farm(): Promise<FarmData> {
     batches: store.batches,
     activities: store.activities,
     problems: store.problems,
+    purchases: store.purchases,
   };
 }
 
@@ -236,10 +238,11 @@ export type ProductUsage = {
   uses: number;
   totalQty: number;
   lastUsed?: string;
+  stock?: Stock; // only for products with a logged purchase
 };
 
 export async function getProductUsage(): Promise<ProductUsage[]> {
-  const { activities, products } = await farm();
+  const { activities, products, purchases } = await farm();
   return products.map((product) => {
     let uses = 0;
     let totalQty = 0;
@@ -258,6 +261,7 @@ export async function getProductUsage(): Promise<ProductUsage[]> {
       totalQty += qty;
       lastUsed ??= dayKey(a.occurredAt);
     }
-    return { product, uses, totalQty, lastUsed };
+    const stock = stockOf(product, purchases, activities);
+    return { product, uses, totalQty, lastUsed, stock: stock.purchases ? stock : undefined };
   });
 }

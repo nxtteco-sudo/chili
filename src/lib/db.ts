@@ -4,7 +4,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { farmIso } from "./dates";
 import { createClient } from "./supabase/server";
-import type { Activity, Batch, Photo, Problem, ProblemUpdate, Product, Variety } from "./types";
+import type { Activity, Batch, Photo, Problem, ProblemUpdate, Product, Purchase, Variety } from "./types";
 
 // Supabase data access (replaces the Phase 1 local JSON store). Reads run as
 // the logged-in user, so Row Level Security limits them to farm members.
@@ -17,6 +17,7 @@ export type Store = {
   batches: Batch[];
   activities: Activity[]; // newest first
   problems: Problem[]; // newest first
+  purchases: Purchase[];
 };
 
 const PHOTO_BUCKET = "photos";
@@ -34,6 +35,16 @@ async function selectAll(sb: SupabaseClient, table: string, order: [string, bool
     if (error) throw new Error(`Loading ${table}: ${error.message}`);
     rows.push(...data);
     if (data.length < PAGE) return rows;
+  }
+}
+
+// Reads a table that may not exist yet (purchases, until migration 0004 is run), as empty.
+async function selectAllOptional(sb: SupabaseClient, table: string, order: [string, boolean][]) {
+  try {
+    return await selectAll(sb, table, order);
+  } catch (error) {
+    if (error instanceof Error && /Could not find the table|does not exist/.test(error.message)) return [];
+    throw error;
   }
 }
 
@@ -193,18 +204,38 @@ export const fromActivity = (a: Activity) => ({
   photos: a.photos,
 });
 
+export const toPurchase = (r: Row): Purchase => ({
+  id: r.id as string,
+  productId: r.product_id as string,
+  quantity: Number(r.quantity),
+  unit: r.unit as string,
+  occurredAt: farmIso(r.occurred_at as string),
+  groupId: opt(r.group_id),
+  rawMessage: opt(r.raw_message),
+});
+export const fromPurchase = (p: Purchase) => ({
+  id: p.id,
+  product_id: p.productId,
+  quantity: p.quantity,
+  unit: p.unit,
+  occurred_at: p.occurredAt,
+  group_id: p.groupId ?? null,
+  raw_message: p.rawMessage ?? null,
+});
+
 // ── Reads ─────────────────────────────────────────────────────────────────
 
 // One load per request, shared by every data function a page calls.
 export const readStore = cache(async (): Promise<Store> => {
   const sb = await createClient();
-  const [products, varieties, batches, problems, updates, activities] = await Promise.all([
+  const [products, varieties, batches, problems, updates, activities, purchases] = await Promise.all([
     selectAll(sb, "products", [["name", true]]),
     selectAll(sb, "varieties", [["name", true]]),
     selectAll(sb, "batches", [["sown_on", false], ["transplanted_on", false]]),
     selectAll(sb, "problems", [["found_on", false], ["id", true]]),
     selectAll(sb, "problem_updates", [["occurred_at", true]]),
     selectAll(sb, "activities", [["occurred_at", false], ["id", true]]),
+    selectAllOptional(sb, "purchases", [["occurred_at", false], ["id", true]]),
   ]);
   const byProblem = new Map<string, ProblemUpdate[]>();
   for (const r of updates) {
@@ -218,6 +249,7 @@ export const readStore = cache(async (): Promise<Store> => {
     batches: batches.map(toBatch),
     problems: problems.map((r) => toProblem(r, byProblem.get(r.id as string) ?? [])),
     activities: activities.map(toActivity),
+    purchases: purchases.map(toPurchase),
   };
 });
 

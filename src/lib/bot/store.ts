@@ -1,8 +1,8 @@
 import "server-only";
 import type { StorageAdapter } from "grammy";
-import { fromActivity, fromProduct, toActivity, toBatch, toProduct } from "@/lib/db";
+import { fromActivity, fromProduct, fromPurchase, toActivity, toBatch, toProduct, toPurchase } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/server";
-import type { Activity, Batch, Product } from "@/lib/types";
+import type { Activity, Batch, Product, Purchase } from "@/lib/types";
 
 // Everything the bot reads and writes. The bot has no login session, so it
 // uses the service role key (bypasses Row Level Security) and decides who may
@@ -80,4 +80,27 @@ export async function lastSavedActivity(): Promise<Activity | undefined> {
 export async function deleteActivity(id: string) {
   const { error } = await createAdminClient().from("activities").delete().eq("id", id);
   if (error) throw new Error(`Deleting entry: ${error.message}`);
+}
+
+export async function savePurchases(purchases: Purchase[]) {
+  if (purchases.length === 0) return;
+  const { error } = await createAdminClient().from("purchases").insert(purchases.map(fromPurchase));
+  if (error) throw new Error(`Saving purchases (has migration 0004 been run?): ${error.message}`);
+}
+
+export async function deletePurchaseGroup(groupId: string) {
+  const { error } = await createAdminClient().from("purchases").delete().eq("group_id", groupId);
+  if (error) throw new Error(`Deleting purchases: ${error.message}`);
+}
+
+// Stock needs every purchase and every use, not just the recent ones.
+export async function loadStockData(): Promise<{ products: Product[]; purchases: Purchase[]; activities: Activity[] }> {
+  const sb = createAdminClient();
+  const [products, purchases, activities] = await Promise.all([
+    sb.from("products").select("*").order("name"),
+    sb.from("purchases").select("*"),
+    sb.from("activities").select("*").range(0, 4999),
+  ]);
+  for (const r of [products, purchases, activities]) if (r.error) throw new Error(`Loading stock: ${r.error.message}`);
+  return { products: products.data!.map(toProduct), purchases: purchases.data!.map(toPurchase), activities: activities.data!.map(toActivity) };
 }

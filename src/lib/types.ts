@@ -135,6 +135,17 @@ export type Problem = {
   updates: ProblemUpdate[];
 };
 
+// Something bought (quantity only, no money), stored in the product's own unit.
+export type Purchase = {
+  id: string;
+  productId: string;
+  quantity: number;
+  unit: string;
+  occurredAt: string;
+  groupId?: string;
+  rawMessage?: string;
+};
+
 export type FarmData = {
   today: string; // YYYY-MM-DD in farm timezone
   products: Product[];
@@ -142,4 +153,5 @@ export type FarmData = {
   batches: Batch[];
   activities: Activity[]; // newest first
   problems: Problem[]; // newest first
+  purchases: Purchase[];
 };
