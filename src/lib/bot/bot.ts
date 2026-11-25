@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Bot, InlineKeyboard, Keyboard, session, type Context, type SessionFlavor } from "grammy";
 import { addDays, atTime, dayKey, formatShort } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
-import { stockOf } from "@/lib/stock";
+import { abProductId, stockOf } from "@/lib/stock";
 import { convertQty, friendlyQty } from "@/lib/units";
 import type { Product, Purchase } from "@/lib/types";
 import { parseLogMessage } from "@/lib/ai/parse";
@@ -166,8 +166,9 @@ export function createBot(token: string) {
 
   bot.command("stok", async (ctx) => {
     const { products, purchases, activities } = await loadStockData();
+    const abId = abProductId(products);
     const rows = products
-      .map((p) => ({ p, s: stockOf(p, purchases, activities) }))
+      .map((p) => ({ p, s: stockOf(p, purchases, activities, abId) }))
       .filter((r) => r.s.purchases > 0)
       .sort((a, b) => a.p.name.localeCompare(b.p.name));
     if (rows.length === 0) return ctx.reply("Belum ada stok dicatat. Hantar contoh: beli BAYER INFINITO 1L (No stock logged yet.)");

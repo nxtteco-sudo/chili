@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { batchInfo, isActiveBatch } from "./batches";
 import { addDays, dayKey, diffDays, monthKey } from "./dates";
 import { readStore } from "./db";
-import { stockOf, type Stock } from "./stock";
+import { abProductId, stockOf, type Stock } from "./stock";
 import type { Activity, ActivityType, Batch, FarmData, Problem, Product } from "./types";
 
 // Every page reads through these functions. Data comes from Supabase via
@@ -243,6 +243,7 @@ export type ProductUsage = {
 
 export async function getProductUsage(): Promise<ProductUsage[]> {
   const { activities, products, purchases } = await farm();
+  const abId = abProductId(products);
   return products.map((product) => {
     let uses = 0;
     let totalQty = 0;
@@ -261,7 +262,7 @@ export async function getProductUsage(): Promise<ProductUsage[]> {
       totalQty += qty;
       lastUsed ??= dayKey(a.occurredAt);
     }
-    const stock = stockOf(product, purchases, activities);
+    const stock = stockOf(product, purchases, activities, abId);
     return { product, uses, totalQty, lastUsed, stock: stock.purchases ? stock : undefined };
   });
 }
