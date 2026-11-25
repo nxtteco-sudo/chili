@@ -3,8 +3,8 @@ import { Bot, InlineKeyboard, Keyboard, session, type Context, type SessionFlavo
 import { dayKey, formatShort } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
 import { parseLogMessage } from "@/lib/ai/parse";
-import { FLOWS, makeCtx, prefill, rows, type Draft, type Flow, type Option } from "./flows";
-import { deleteActivity, getTelegramUser, lastSavedActivity, loadCatalog, saveActivity, sessionStorage } from "./store";
+import { FLOWS, makeCtx, pendingProduct, prefill, rows, type Draft, type Flow, type Option } from "./flows";
+import { deleteActivity, getTelegramUser, lastSavedActivity, loadCatalog, saveActivity, saveProduct, sessionStorage } from "./store";
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
@@ -47,6 +47,14 @@ const reset = (ctx: BotContext) => {
   ctx.session = { step: 0, draft: {}, values: [] };
 };
 
+// A product the farmer typed that wasn't in the list is created when the entry is saved.
+async function saveNewProduct(draft: Draft) {
+  const product = pendingProduct(draft);
+  if (!product) return "";
+  await saveProduct(product);
+  return `\n\n🆕 Produk baru ditambah: ${product.name} (${product.unit}). Isi tempoh selamat di dashboard.\n(New product added. Fill in its waiting period on the dashboard.)`;
+}
+
 // Shows the next unanswered question, or the summary once everything is filled in.
 async function ask(ctx: BotContext) {
   const s = ctx.session;
@@ -74,9 +82,10 @@ async function ask(ctx: BotContext) {
     // A typed sentence is saved straight away; the Padam button is the safety net.
     const activity = { ...flow.build(fc), rawMessage: s.raw };
     const summary = flow.summary(fc).split("\n").slice(1).join("\n");
+    const added = await saveNewProduct(s.draft);
     await saveActivity(activity);
     reset(ctx);
-    await ctx.reply(`✅ Disimpan! (Saved.)\n\n${summary}`, {
+    await ctx.reply(`✅ Disimpan! (Saved.)\n\n${summary}${added}`, {
       reply_markup: new InlineKeyboard().text("↩️ Salah? Padam", `u:${activity.id}`),
     });
     return;
@@ -192,9 +201,10 @@ export function createBot(token: string) {
     }
     if (ctx.match[1] === "redo") return start(ctx, flow.id);
     const activity = flow.build(makeCtx(s.draft, await loadCatalog()));
+    const added = await saveNewProduct(s.draft);
     await saveActivity({ ...activity, rawMessage: s.raw });
     reset(ctx);
-    await ctx.reply("✅ Disimpan! (Saved.)");
+    await ctx.reply(`✅ Disimpan! (Saved.)${added}`);
   });
 
   bot.on("message:text", async (ctx) => {

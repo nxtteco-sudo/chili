@@ -1,6 +1,6 @@
 import "server-only";
 import type { StorageAdapter } from "grammy";
-import { fromActivity, toActivity, toBatch, toProduct } from "@/lib/db";
+import { fromActivity, fromProduct, toActivity, toBatch, toProduct } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { Activity, Batch, Product } from "@/lib/types";
 
@@ -54,6 +54,11 @@ export async function loadCatalog(): Promise<Catalog> {
     batches: batches.data!.map(toBatch),
     activities: activities.data!.map(toActivity),
   };
+}
+
+export async function saveProduct(p: Product) {
+  const { error } = await createAdminClient().from("products").upsert(fromProduct(p));
+  if (error) throw new Error(`Saving product: ${error.message}`);
 }
 
 export async function saveActivity(a: Activity) {

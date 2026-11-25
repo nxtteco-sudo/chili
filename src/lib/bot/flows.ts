@@ -34,9 +34,13 @@ export type Flow = {
   build: (fc: FlowCtx) => Activity;
 };
 
+// A product the farmer typed that isn't in the list yet is kept in the draft and
+// only written to the database when the entry is saved.
+export const pendingProduct = (draft: Draft) => draft.newProduct as Product | undefined;
+
 export const makeCtx = (draft: Draft, catalog: Catalog): FlowCtx => ({
   draft,
-  catalog,
+  catalog: pendingProduct(draft) ? { ...catalog, products: [...catalog.products, pendingProduct(draft)!] } : catalog,
   today: dayKey(new Date()),
   nowTime: new Intl.DateTimeFormat("en-GB", { timeZone: FARM_TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
 });
@@ -315,8 +319,15 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 // dropped and the bot simply asks that question instead.
 export function prefill(flow: Flow, fields: Record<string, unknown>, catalog: Catalog): Draft {
   const draft: Draft = {};
-  const named = fields.productName;
-  const raw: Record<string, unknown> = { ...fields, productId: typeof named === "string" ? catalog.products.find((p) => p.name.toLowerCase() === named.toLowerCase())?.id : undefined };
+  const named = typeof fields.productName === "string" ? fields.productName.trim() : "";
+  const category = flow.id === "spray" ? "pesticide" : flow.id === "fertilizer" ? "fertilizer" : undefined;
+  const known = named ? catalog.products.find((p) => p.name.toLowerCase() === named.toLowerCase() && p.category === category) : undefined;
+  if (named && category && !known && named.length <= 60) {
+    // Not in the list yet: add it as a new product (waiting period can be filled in later on the dashboard).
+    const unit = typeof fields.unit === "string" ? fields.unit : category === "pesticide" ? "ml" : "kg";
+    draft.newProduct = { id: randomUUID(), name: named, category, subtype: "Other", unit };
+  }
+  const raw: Record<string, unknown> = { ...fields, productId: known?.id ?? pendingProduct(draft)?.id };
   for (const step of flow.steps) {
     const value = raw[step.key];
     if (value === undefined || value === null || value === "") continue;

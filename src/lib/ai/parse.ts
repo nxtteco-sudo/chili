@@ -15,11 +15,12 @@ const nullable = (type: string, extra: object = {}) => ({ type: [type, "null"], 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["type", "daysAgo", "productName", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method"],
+  required: ["type", "daysAgo", "productName", "unit", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method"],
   properties: {
     type: { type: "string", enum: ["spray", "tank_mix", "fertilizer", "unknown"] },
     daysAgo: nullable("integer"),
     productName: nullable("string"),
+    unit: nullable("string", { enum: ["ml", "g", "L", "kg", null] }),
     dosePerTank: nullable("number"),
     tankSizeL: nullable("number"),
     tanks: nullable("number"),
@@ -51,7 +52,8 @@ Rules:
 - "tong" means one sprayer tank. dosePerTank is the amount for ONE tank, in the product's own unit. "20ml satu tong, 4 tong" = dosePerTank 20, tanks 4. If only a total is given, leave dosePerTank null.
 - tankSizeL is the tank volume in litres, only if stated.
 - daysAgo: 0 for today / pagi tadi / tadi / petang tadi, 1 for semalam, 2 for kelmarin or "2 hari lepas", and so on. null if no day is mentioned.
-- productName must be copied exactly from this list, or null if nothing matches: ${products.length ? products.join(", ") : "(no products yet)"}.
+- productName: the product the farmer names. If it is the same product as one in this list (allowing for typos and different spelling), use the list name exactly. Otherwise write the name as the farmer wrote it, tidied up (no quantity or unit in it). null if no product is named. Known products: ${products.length ? products.join(", ") : "(none yet)"}.
+- unit: the unit written next to the dose or quantity (ml, g, L or kg), null if not stated.
 - target is the pest, disease or reason (thrips, kulat, tungau...), short, as the farmer said it.
 - method (fertilizer only): foliar = sprayed on leaves, tabur = spread on soil, siram = poured.`;
 
@@ -81,10 +83,11 @@ export async function parseLogMessage(text: string, catalog: Catalog, today: str
     }
     const parsed = JSON.parse((await res.json()).choices[0].message.content) as Record<string, unknown>;
     if (parsed.type !== "spray" && parsed.type !== "tank_mix" && parsed.type !== "fertilizer") return null;
-    const { type, productName, ...rest } = parsed;
+    const { type, productName, unit, ...rest } = parsed;
     const fields: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rest)) if (v !== null) fields[k] = v;
     if (typeof productName === "string") fields.productName = productName;
+    if (typeof unit === "string") fields.unit = unit;
     return { type, fields };
   } catch (error) {
     console.error("AI parse failed:", error);

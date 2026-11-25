@@ -54,7 +54,7 @@ export const toProduct = (r: Row): Product => ({
   phiDays: opt(r.phi_days),
   notes: opt(r.notes),
 });
-const fromProduct = (p: Product) => ({
+export const fromProduct = (p: Product) => ({
   id: p.id,
   name: p.name,
   category: p.category,
