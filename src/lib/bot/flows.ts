@@ -310,4 +310,20 @@ const fertilizer: Flow = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// Turns what the AI read from a typed message into starting answers for a flow.
+// Every value goes through the step's own parser, so a bad or invented value is
+// dropped and the bot simply asks that question instead.
+export function prefill(flow: Flow, fields: Record<string, unknown>, catalog: Catalog): Draft {
+  const draft: Draft = {};
+  const named = fields.productName;
+  const raw: Record<string, unknown> = { ...fields, productId: typeof named === "string" ? catalog.products.find((p) => p.name.toLowerCase() === named.toLowerCase())?.id : undefined };
+  for (const step of flow.steps) {
+    const value = raw[step.key];
+    if (value === undefined || value === null || value === "") continue;
+    const parsed = step.parse ? step.parse(String(value), makeCtx(draft, catalog)) : { value };
+    if (!("error" in parsed)) draft[step.key] = parsed.value;
+  }
+  return draft;
+}
+
 export const FLOWS: Record<Flow["id"], Flow> = { spray, tank_mix: tankMix, fertilizer };

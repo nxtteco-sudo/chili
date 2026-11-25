@@ -2,12 +2,13 @@ import "server-only";
 import { Bot, InlineKeyboard, Keyboard, session, type Context, type SessionFlavor } from "grammy";
 import { dayKey, formatShort } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
-import { FLOWS, makeCtx, rows, type Draft, type Flow, type Option } from "./flows";
+import { parseLogMessage } from "@/lib/ai/parse";
+import { FLOWS, makeCtx, prefill, rows, type Draft, type Flow, type Option } from "./flows";
 import { deleteActivity, getTelegramUser, lastSavedActivity, loadCatalog, saveActivity, sessionStorage } from "./store";
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
-type Session = { flow?: Flow["id"]; step: number; draft: Draft; values: string[] };
+type Session = { flow?: Flow["id"]; step: number; draft: Draft; values: string[]; raw?: string };
 type BotContext = Context & SessionFlavor<Session>;
 
 const MENU = {
@@ -54,6 +55,10 @@ async function ask(ctx: BotContext) {
   while (s.step < flow.steps.length) {
     const step = flow.steps[s.step];
     const auto = step.auto?.(fc);
+    if (!auto && step.key in s.draft) {
+      s.step++; // already answered (read from the farmer's typed message)
+      continue;
+    }
     if (!auto) {
       const q = step.ask(fc);
       const options = q.options ?? [];
@@ -172,14 +177,23 @@ export function createBot(token: string) {
     }
     if (ctx.match[1] === "redo") return start(ctx, flow.id);
     const activity = flow.build(makeCtx(s.draft, await loadCatalog()));
-    await saveActivity({ ...activity, rawMessage: undefined });
+    await saveActivity({ ...activity, rawMessage: s.raw });
     reset(ctx);
     await ctx.reply("✅ Disimpan! (Saved.)", { reply_markup: menu });
   });
 
   bot.on("message:text", async (ctx) => {
-    if (!ctx.session.flow) return ctx.reply("Pilih dari menu di bawah. (Pick from the menu below.)", { reply_markup: menu });
-    await answer(ctx, ctx.message.text);
+    if (ctx.session.flow) return answer(ctx, ctx.message.text);
+    // No flow running: try to read a typed sentence as a log entry.
+    const catalog = await loadCatalog();
+    const text = ctx.message.text;
+    await ctx.replyWithChatAction("typing");
+    const entry = await parseLogMessage(text, catalog, makeCtx({}, catalog).today);
+    if (!entry) return ctx.reply("Tak faham lagi 😅 Pilih dari menu di bawah. (Couldn't read that — pick from the menu below.)", { reply_markup: menu });
+    const flow = FLOWS[entry.type];
+    ctx.session = { flow: flow.id, step: 0, draft: prefill(flow, entry.fields, catalog), values: [], raw: text };
+    await ctx.reply(`🤖 Saya faham ini ${flow.title}. Saya tanya yang tak jelas sahaja.\n(I read this as ${flow.title}. I'll only ask what's missing.)`);
+    await ask(ctx);
   });
 
   bot.on("message:photo", (ctx) => ctx.reply("Gambar belum disokong lagi — akan datang. (Photos aren't supported yet — coming soon.)"));
