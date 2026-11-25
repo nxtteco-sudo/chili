@@ -70,6 +70,17 @@ async function ask(ctx: BotContext) {
     s.step++;
   }
   s.values = [];
+  if (s.raw) {
+    // A typed sentence is saved straight away; the Padam button is the safety net.
+    const activity = { ...flow.build(fc), rawMessage: s.raw };
+    const summary = flow.summary(fc).split("\n").slice(1).join("\n");
+    await saveActivity(activity);
+    reset(ctx);
+    await ctx.reply(`✅ Disimpan! (Saved.)\n\n${summary}`, {
+      reply_markup: new InlineKeyboard().text("↩️ Salah? Padam", `u:${activity.id}`),
+    });
+    return;
+  }
   await ctx.reply(flow.summary(fc), { reply_markup: confirmKeyboard });
 }
 
@@ -112,12 +123,16 @@ export function createBot(token: string) {
 
   bot.command("start", async (ctx) => {
     reset(ctx);
-    await ctx.reply("🌶️ Selamat datang ke Kebun Cili!\nPilih di bawah untuk catat. (Pick below to log.)", { reply_markup: menu });
+    await ctx.reply(
+      "🌶️ Selamat datang ke Kebun Cili!\nTaip je apa yang dibuat, saya catatkan.\nContoh: sembur Movento 20ml satu tong, 4 tong, thrips\n\n(Just type what you did and it is logged. /menu shows buttons.)",
+      { reply_markup: { remove_keyboard: true } },
+    );
   });
+  bot.command("menu", (ctx) => ctx.reply("Pilih: (Pick one)", { reply_markup: menu }));
   bot.command("id", (ctx) => ctx.reply(`Telegram ID: ${ctx.from?.id}`));
   bot.command(["batal", "cancel"], async (ctx) => {
     reset(ctx);
-    await ctx.reply("Dibatalkan. (Cancelled.)", { reply_markup: menu });
+    await ctx.reply("Dibatalkan. (Cancelled.)");
   });
 
   for (const id of Object.keys(FLOWS) as Flow["id"][]) bot.hears(MENU[id], (ctx) => start(ctx, id));
@@ -173,13 +188,13 @@ export function createBot(token: string) {
     await ctx.editMessageReplyMarkup();
     if (ctx.match[1] === "no") {
       reset(ctx);
-      return ctx.reply("Dibatalkan. (Cancelled.)", { reply_markup: menu });
+      return ctx.reply("Dibatalkan. (Cancelled.)");
     }
     if (ctx.match[1] === "redo") return start(ctx, flow.id);
     const activity = flow.build(makeCtx(s.draft, await loadCatalog()));
     await saveActivity({ ...activity, rawMessage: s.raw });
     reset(ctx);
-    await ctx.reply("✅ Disimpan! (Saved.)", { reply_markup: menu });
+    await ctx.reply("✅ Disimpan! (Saved.)");
   });
 
   bot.on("message:text", async (ctx) => {
@@ -189,10 +204,10 @@ export function createBot(token: string) {
     const text = ctx.message.text;
     await ctx.replyWithChatAction("typing");
     const entry = await parseLogMessage(text, catalog, makeCtx({}, catalog).today);
-    if (!entry) return ctx.reply("Tak faham lagi 😅 Pilih dari menu di bawah. (Couldn't read that — pick from the menu below.)", { reply_markup: menu });
+    if (!entry) return ctx.reply("Tak faham lagi 😅 Cuba taip macam: sembur Movento 20ml satu tong, 4 tong, thrips\n(Couldn't read that. Or use /menu for buttons.)");
     const flow = FLOWS[entry.type];
     ctx.session = { flow: flow.id, step: 0, draft: prefill(flow, entry.fields, catalog), values: [], raw: text };
-    await ctx.reply(`🤖 Saya faham ini ${flow.title}. Saya tanya yang tak jelas sahaja.\n(I read this as ${flow.title}. I'll only ask what's missing.)`);
+    await ctx.reply(`🤖 Saya faham ini ${flow.title}.`);
     await ask(ctx);
   });
 
