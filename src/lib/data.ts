@@ -4,7 +4,7 @@ import { batchInfo, isActiveBatch } from "./batches";
 import { addDays, dayKey, diffDays, monthKey } from "./dates";
 import { readStore } from "./db";
 import { abProductId, stockOf, type Stock } from "./stock";
-import type { Activity, ActivityType, Batch, FarmData, Problem, Product } from "./types";
+import type { Activity, ActivityType, Batch, DripReading, FarmData, Problem, Product } from "./types";
 
 // Every page reads through these functions. Data comes from Supabase via
 // readStore(), loaded once per request and filtered here.
@@ -194,6 +194,16 @@ export async function getEcPhSeries(sinceDays?: number): Promise<EcPhPoint[]> {
     .filter((a): a is Extract<Activity, { type: "tank_mix" }> => a.type === "tank_mix")
     .map((a) => ({ date: dayKey(a.occurredAt), ec: a.tankMix.ec, ph: a.tankMix.ph, activityId: a.id }))
     .reverse();
+}
+
+// Readings taken at the drip line, newest first.
+export async function getDripReadings(filter: { sinceDays?: number; q?: string } = {}): Promise<DripReading[]> {
+  const { dripReadings, today } = await farm();
+  const from = filter.sinceDays === undefined ? undefined : addDays(today, -filter.sinceDays);
+  const q = filter.q?.trim().toLowerCase();
+  return dripReadings.filter(
+    (d) => (from === undefined || dayKey(d.occurredAt) >= from) && (!q || "drip reading ec ph".includes(q) || (d.rawMessage ?? "").toLowerCase().includes(q)),
+  );
 }
 
 // Readings taken at the drip line, oldest first.

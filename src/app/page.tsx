@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, ArrowUpRight, CalendarDays, ChevronRight, Leaf, Plus, ShieldCheck, ShieldAlert, Sprout } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, ChevronRight, Droplet, Leaf, Plus, ShieldCheck, ShieldAlert, Sprout } from "lucide-react";
 import { ActivityRow } from "@/components/activity-row";
 import { BatchCard } from "@/components/batch-card";
 import { GardenArt } from "@/components/garden-art";
 import { LineChart } from "@/components/line-chart";
 import { Card, PageSkeleton, SectionTitle, StatusBadge, TextLink, TypeIcon } from "@/components/ui";
-import { getActiveBatches, getActivities, getEcPhSeries, getHarvestSafety, getLastByType, getMonthlyUsage, getProblems, getProducts } from "@/lib/data";
+import { getActiveBatches, getActivities, getDripReadings, getEcPhSeries, getHarvestSafety, getLastByType, getMonthlyUsage, getProblems, getProducts } from "@/lib/data";
 import { addDays, dayKey, diffDays, formatFull, formatWeekday, monthKey, relativeDay } from "@/lib/dates";
 import { describeActivity } from "@/lib/describe";
 import { ENTRY_META } from "@/lib/entry-meta";
@@ -16,8 +16,8 @@ import type { Activity, ActivityType, Product } from "@/lib/types";
 export default function HomePage() { return <Suspense fallback={<PageSkeleton />}><Home /></Suspense>; }
 
 async function Home() {
-  const [products, last, safety, openProblems, recent] = await Promise.all([
-    getProducts(), getLastByType(), getHarvestSafety(), getProblems({ status: "open" }), getActivities({ sinceDays: 6 }),
+  const [products, last, safety, openProblems, recent, [lastDrip]] = await Promise.all([
+    getProducts(), getLastByType(), getHarvestSafety(), getProblems({ status: "open" }), getActivities({ sinceDays: 6 }), getDripReadings({ sinceDays: 30 }),
   ]);
   const { today } = safety;
   const [[month], batches, ecSeries] = await Promise.all([getMonthlyUsage([monthKey(today)]), getActiveBatches(), getEcPhSeries(60)]);
@@ -43,8 +43,13 @@ async function Home() {
       <div className="farm-hero-art absolute -right-16 bottom-0 h-[225px] w-[355px] opacity-80 sm:right-2 sm:h-[255px] sm:w-[440px] sm:opacity-100 lg:right-6"><GardenArt /></div>
     </section>
 
-    <div className="dashboard-metrics grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="dashboard-metrics grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {(["spray", "tank_mix", "fertilizer"] as const).map(type => <LastDoneTile key={type} type={type} activity={last[type]} today={today} products={products} />)}
+      <Link href="/timeline?type=drip" className="metric-card rounded-2xl border border-line bg-white p-5">
+        <div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">Last drip reading</span><span className="grid size-8 place-items-center rounded-full bg-water-soft text-water"><Droplet className="size-4" /></span></div>
+        <p className="mt-3 text-[27px] font-medium leading-none tracking-[-.05em]">{lastDrip ? relativeDay(dayKey(lastDrip.occurredAt), today) : "No entries"}</p>
+        <p className="mt-3 truncate text-[10px] text-muted">{lastDrip ? [lastDrip.ec !== undefined && `EC ${lastDrip.ec}`, lastDrip.ph !== undefined && `pH ${lastDrip.ph}`].filter(Boolean).join(" · ") : "Nothing logged yet"}</p>
+      </Link>
       <Link href="/reports" className="metric-card rounded-2xl border border-line bg-white p-5">
         <div className="flex items-center justify-between"><span className="text-[11px] text-ink-2">This month</span><span className="grid size-8 place-items-center rounded-full bg-[#f4f1e6] text-[#9d9166]"><CalendarDays className="size-4" /></span></div>
         <p className="mt-3 text-[27px] font-medium leading-none tracking-[-.05em]">{month.sprays} <span className="text-[15px] tracking-normal text-ink-2">sprays</span> · {month.tankMixes} <span className="text-[15px] tracking-normal text-ink-2">tanks</span></p>

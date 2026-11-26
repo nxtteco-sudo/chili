@@ -1,18 +1,19 @@
 import { getMember } from "@/lib/auth";
 import { csvResponse } from "@/lib/csv";
-import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getDripReadings, getProblems, getProducts, getToday } from "@/lib/data";
 import { dayKey, formatTime } from "@/lib/dates";
 import { ENTRY_META, FERT_METHOD_LABEL } from "@/lib/entry-meta";
 import { formatQty } from "@/lib/format";
 
 export async function GET() {
   if (!(await getMember())) return new Response("Please log in", { status: 401 });
-  const [today, activities, products, problems, batches] = await Promise.all([
+  const [today, activities, products, problems, batches, drips] = await Promise.all([
     getToday(),
     getActivities(),
     getProducts(),
     getProblems(),
     getBatches(),
+    getDripReadings(),
   ]);
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
   const problemTitle = (id?: string) => problems.find((p) => p.id === id)?.title;
@@ -20,7 +21,7 @@ export async function GET() {
     ids.map((id) => batches.find((b) => b.batch.id === id)?.batch.name).filter(Boolean).join(", ");
 
   // Columns: shared → spray → tank mix → other baja → shared tail.
-  const rows = [...activities].reverse().map((a) => {
+  const activityRows = [...activities].map((a) => {
     const head = [dayKey(a.occurredAt), formatTime(a.occurredAt), ENTRY_META[a.type].label, batchNames(a.batchIds)];
     const tail = [problemTitle(a.problemId), a.notes, a.rawMessage];
     if (a.type === "spray") {
@@ -35,6 +36,19 @@ export async function GET() {
     const f = a.fertilizer;
     return [...head, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", productName(f.productId), formatQty(f.quantity, f.unit), FERT_METHOD_LABEL[f.method], ...tail];
   });
+  // Drip readings sit in the same sheet: EC and pH columns filled, everything else empty.
+  const dripRows = drips.map((d) => [
+    dayKey(d.occurredAt), formatTime(d.occurredAt), "Drip reading", "",
+    "", "", "", "", "", "", "", "", "",
+    "", "", "", "", d.ec, d.ph, "",
+    "", "", "",
+    "", "", d.rawMessage,
+  ]);
+  const keyed = [
+    ...activities.map((a, i) => ({ at: a.occurredAt, row: activityRows[i] })),
+    ...drips.map((d, i) => ({ at: d.occurredAt, row: dripRows[i] })),
+  ].sort((a, z) => a.at.localeCompare(z.at));
+  const rows = keyed.map((k) => k.row);
 
   return csvResponse(
     `kebun-cili-entries-${today}.csv`,

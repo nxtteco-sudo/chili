@@ -3,16 +3,17 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityRow } from "@/components/activity-row";
 import { SearchForm } from "@/components/search-form";
+import { Droplet } from "lucide-react";
 import { Card, Chips, EmptyState, PageHeader, PageSkeleton, StatusBadge, TypeIcon } from "@/components/ui";
-import { getActivities, getBatches, getProblems, getProducts, getToday } from "@/lib/data";
-import { addDays, dayKey, formatWeekday, relativeDay } from "@/lib/dates";
+import { getActivities, getBatches, getDripReadings, getProblems, getProducts, getToday } from "@/lib/data";
+import { addDays, dayKey, formatTime, formatWeekday, relativeDay } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 import { href, oneOf, param } from "@/lib/params";
-import type { Activity, Problem } from "@/lib/types";
+import type { Activity, DripReading, Problem } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Timeline" };
 
-const TYPES = ["spray", "tank_mix", "fertilizer", "problem"] as const;
+const TYPES = ["spray", "tank_mix", "fertilizer", "drip", "problem"] as const;
 const RANGES = { "7": 7, "30": 30, "90": 90, all: undefined } as const;
 type RangeKey = keyof typeof RANGES;
 
@@ -29,7 +30,8 @@ export default function TimelinePage(props: PageProps<"/timeline">) {
 
 type Row =
   | { kind: "activity"; at: string; activity: Activity }
-  | { kind: "problem"; at: string; problem: Problem };
+  | { kind: "problem"; at: string; problem: Problem }
+  | { kind: "drip"; at: string; drip: DripReading };
 
 async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">["searchParams"] }) {
   const sp = await searchParams;
@@ -40,11 +42,12 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
   const allBatches = await getBatches();
   const batchId = allBatches.some((b) => b.batch.id === param(sp, "batch")) ? param(sp, "batch") : undefined;
 
-  const [today, products, activities, problems] = await Promise.all([
+  const [today, products, activities, problems, drips] = await Promise.all([
     getToday(),
     getProducts(),
-    type === "problem" ? Promise.resolve([]) : getActivities({ type, q, sinceDays, batchId }),
+    type === "problem" || type === "drip" ? Promise.resolve([]) : getActivities({ type, q, sinceDays, batchId }),
     !type || type === "problem" ? getProblems({ q, batchId }) : Promise.resolve([]),
+    (!type || type === "drip") && !batchId ? getDripReadings({ sinceDays, q }) : Promise.resolve([]),
   ]);
 
   const since = sinceDays !== undefined ? addDays(today, -sinceDays) : undefined;
@@ -53,6 +56,7 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
     ...problems
       .filter((p) => !since || p.foundOn >= since)
       .map((p) => ({ kind: "problem" as const, at: `${p.foundOn}T23:59:00+08:00`, problem: p })),
+    ...drips.map((d) => ({ kind: "drip" as const, at: d.occurredAt, drip: d })),
   ].sort((a, z) => z.at.localeCompare(a.at));
 
   const days = new Map<string, Row[]>();
@@ -75,7 +79,7 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
         items={[
           { href: href("/timeline", { ...base, type: undefined }), label: "All", active: !type },
           ...TYPES.map((t) => {
-            const meta = ENTRY_META[t];
+            const meta = t === "drip" ? { label: "Drip reading", icon: Droplet, text: "text-water" } : ENTRY_META[t];
             const Icon = meta.icon;
             return {
               href: href("/timeline", { ...base, type: t }),
@@ -125,6 +129,8 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
                 {dayRows.map((r) =>
                   r.kind === "activity" ? (
                     <ActivityRow key={r.activity.id} activity={r.activity} products={products} />
+                  ) : r.kind === "drip" ? (
+                    <DripRow key={r.drip.id} drip={r.drip} />
                   ) : (
                     <ProblemRow key={r.problem.id} problem={r.problem} />
                   ),
@@ -134,6 +140,21 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function DripRow({ drip }: { drip: DripReading }) {
+  const readings = [drip.ec !== undefined && `EC ${drip.ec}`, drip.ph !== undefined && `pH ${drip.ph}`].filter(Boolean).join(" · ");
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-water-soft text-water">
+        <Droplet className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-medium">Drip reading · {readings}</p>
+        <p className="truncate text-sm text-ink-2">Measured at the drip line · {formatTime(drip.occurredAt)}</p>
+      </div>
     </div>
   );
 }
