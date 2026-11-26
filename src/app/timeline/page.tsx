@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { ActivityRow } from "@/components/activity-row";
 import { SearchForm } from "@/components/search-form";
 import { Droplet } from "lucide-react";
+import { deleteDripReading } from "@/app/actions";
+import { DeleteButton } from "@/components/form-ui";
 import { Card, Chips, EmptyState, PageHeader, PageSkeleton, StatusBadge, TypeIcon } from "@/components/ui";
 import { getActivities, getBatches, getDripReadings, getProblems, getProducts, getToday } from "@/lib/data";
 import { addDays, dayKey, formatTime, formatWeekday, relativeDay } from "@/lib/dates";
@@ -155,6 +157,7 @@ function DripRow({ drip }: { drip: DripReading }) {
         <p className="truncate text-[15px] font-medium">Drip reading · {readings}</p>
         <p className="truncate text-sm text-ink-2">Measured at the drip line · {formatTime(drip.occurredAt)}</p>
       </div>
+      <DeleteButton action={deleteDripReading} fields={{ id: drip.id }} label="" confirmText="Delete this drip reading?" />
     </div>
   );
 }

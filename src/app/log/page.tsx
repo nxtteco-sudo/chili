@@ -1,16 +1,17 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ChevronRight, Sprout } from "lucide-react";
+import { ChevronRight, Droplet, Sprout } from "lucide-react";
 import { PageHeader, TypeIcon } from "@/components/ui";
 import { ENTRY_META } from "@/lib/entry-meta";
 import type { EntryType } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Add entry" };
 
-const CHOICES: { type: EntryType; href: string; note: string }[] = [
+const CHOICES: { type: EntryType | "drip"; href: string; note: string }[] = [
   { type: "spray", href: "/log/new?type=spray", note: "Pesticide / fungicide sprayed" },
   { type: "tank_mix", href: "/log/new?type=tank_mix", note: "New AB tank mixed, with EC & pH" },
   { type: "fertilizer", href: "/log/new?type=fertilizer", note: "Baja not through the drip (foliar, tabur…)" },
+  { type: "drip", href: "/log/drip", note: "EC & pH measured where the water leaves the drip line" },
   { type: "problem", href: "/problems/new", note: "Something wrong with the plants" },
 ];
 
@@ -21,7 +22,21 @@ export default function LogPage() {
       <ul className="space-y-3">
         {CHOICES.map(({ type, href, note }) => (
           <li key={type}>
-            <Choice href={href} icon={<TypeIcon type={type} size="lg" />} label={ENTRY_META[type].label} malay={ENTRY_META[type].malay} note={note} />
+            {type === "drip" ? (
+              <Choice
+                href={href}
+                icon={
+                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-water-soft text-water">
+                    <Droplet className="size-6" />
+                  </span>
+                }
+                label="Drip reading"
+                malay="Bacaan titisan"
+                note={note}
+              />
+            ) : (
+              <Choice href={href} icon={<TypeIcon type={type} size="lg" />} label={ENTRY_META[type].label} malay={ENTRY_META[type].malay} note={note} />
+            )}
           </li>
         ))}
       </ul>

@@ -288,6 +288,9 @@ async function remove(table: string, id: string, what: string) {
 export const saveActivityRow = (a: Activity) => upsert("activities", fromActivity(a), "Saving entry");
 export const deleteActivityRow = (id: string) => remove("activities", id, "Deleting entry");
 
+export const saveDripReadingRow = (d: DripReading) => upsert("drip_readings", fromDripReading(d), "Saving drip reading");
+export const deleteDripReadingRow = (id: string) => remove("drip_readings", id, "Deleting drip reading");
+
 export const saveProductRow = (p: Product) => upsert("products", fromProduct(p), "Saving product");
 export const deleteProductRow = (id: string) => remove("products", id, "Deleting product");
 

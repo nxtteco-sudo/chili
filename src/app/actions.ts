@@ -8,6 +8,7 @@ import { requireMember } from "@/lib/auth";
 import {
   deleteActivityRow,
   deleteBatchRow,
+  deleteDripReadingRow,
   deletePhotoFiles,
   deleteProblemRow,
   deleteProblemUpdateRow,
@@ -17,6 +18,7 @@ import {
   readStore,
   saveActivityRow,
   saveBatchRow,
+  saveDripReadingRow,
   saveProblemRow,
   saveProblemUpdateRow,
   saveProductRow,
@@ -189,6 +191,27 @@ export async function deleteActivity(fd: FormData) {
   await deleteActivityRow(id);
   await deletePhotoFiles(a ? allPhotoIds(a.photos) : []);
   done("/timeline");
+}
+
+// ── Drip readings (EC / pH at the drip line) ──────────────────────────────
+
+export async function saveDripReading(_prev: FormState, fd: FormData): Promise<FormState> {
+  await requireMember();
+  const f = new Fields(fd);
+  const date = f.date("date", "Date");
+  const time = f.time("time", "Time");
+  const ec = f.num("ec", "EC", { max: 20 });
+  const ph = f.num("ph", "pH", { max: 14 });
+  if (f.ok && ec === undefined && ph === undefined) f.errors.reading = "Enter the EC, the pH, or both.";
+  if (!f.ok) return f.state();
+  await saveDripReadingRow({ id: randomUUID(), occurredAt: atTime(date!, time!), ec, ph });
+  done("/timeline?type=drip");
+}
+
+export async function deleteDripReading(fd: FormData) {
+  await requireMember();
+  await deleteDripReadingRow(String(fd.get("id") ?? ""));
+  done("/timeline?type=drip");
 }
 
 // ── Problems ──────────────────────────────────────────────────────────────
