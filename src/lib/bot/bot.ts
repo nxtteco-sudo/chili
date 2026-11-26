@@ -8,7 +8,7 @@ import { convertQty, friendlyQty } from "@/lib/units";
 import type { Product, Purchase } from "@/lib/types";
 import { parseLogMessage } from "@/lib/ai/parse";
 import { FLOWS, makeCtx, pendingProduct, prefill, rows, type Draft, type Flow, type Option } from "./flows";
-import { deleteActivity, deleteDripReading, deletePurchaseGroup, getTelegramUser, lastSavedActivity, loadCatalog, loadStockData, saveActivity, saveDripReading, saveProduct, savePurchases, sessionStorage } from "./store";
+import { deleteActivity, deleteDripReading, deletePhotoLog, photoLogToLastActivity, photoLogToProblem, savePhotoLog, uploadPhoto, deletePurchaseGroup, getTelegramUser, lastSavedActivity, loadCatalog, loadStockData, saveActivity, saveDripReading, saveProduct, savePurchases, sessionStorage } from "./store";
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
@@ -308,7 +308,39 @@ export function createBot(token: string) {
     await ask(ctx);
   });
 
-  bot.on("message:photo", (ctx) => ctx.reply("Gambar belum disokong lagi — akan datang. (Photos aren't supported yet — coming soon.)"));
+  // A photo is saved straight away as a plain photo log; the buttons turn it into a problem,
+  // add it to the last entry, or delete it. Albums just become several photo logs.
+  bot.on("message:photo", async (ctx) => {
+    const best = ctx.message.photo[ctx.message.photo.length - 1];
+    if ((best.file_size ?? 0) > 5 * 1024 * 1024) return ctx.reply("Gambar terlalu besar (max 5 MB). (Photo is too large.)");
+    await ctx.replyWithChatAction("upload_photo");
+    const file = await ctx.api.getFile(best.file_id);
+    const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+    if (!res.ok) throw new Error(`Downloading photo from Telegram: ${res.status}`);
+    const photoId = await uploadPhoto(new Uint8Array(await res.arrayBuffer()));
+    const log = { id: randomUUID(), occurredAt: new Date().toISOString(), photoId, caption: ctx.message.caption?.trim() || undefined };
+    await savePhotoLog(log);
+    await ctx.reply(`📷 Gambar disimpan.${log.caption ? `\n“${log.caption}”` : ""}\n(Photo saved to the dashboard.)\n\nKalau ini masalah, atau untuk catatan tadi, tekan butang:`, {
+      reply_markup: new InlineKeyboard()
+        .text("⚠️ Masalah", `pl:p:${log.id}`).text("📎 Catatan terakhir", `pl:a:${log.id}`).row()
+        .text("↩️ Padam", `pl:d:${log.id}`),
+    });
+  });
+
+  bot.callbackQuery(/^pl:([pad]):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, action, id] = ctx.match;
+    if (action === "d") {
+      await deletePhotoLog(id);
+      return ctx.editMessageText("🗑️ Gambar dipadam. (Photo deleted.)");
+    }
+    if (action === "p") {
+      const problem = await photoLogToProblem(id, dayKey(new Date()));
+      return ctx.editMessageText(problem ? "⚠️ Dicatat sebagai masalah. Isi butiran di dashboard (Plant health). (Logged as a problem; fill in the details on the dashboard.)" : "Gambar ini dah diuruskan. (Already handled.)");
+    }
+    const last = await photoLogToLastActivity(id);
+    return ctx.editMessageText(last ? "📎 Gambar dilekatkan pada catatan terakhir. (Added to the last entry.)" : "Tiada catatan untuk dilekatkan, atau gambar dah diuruskan. (No entry to attach to.)");
+  });
 
   bot.catch(async ({ error, ctx }) => {
     // Swallow errors: returning a 500 to Telegram would make it re-send the same message forever.

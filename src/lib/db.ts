@@ -4,7 +4,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { farmIso } from "./dates";
 import { createClient } from "./supabase/server";
-import type { Activity, Batch, Photo, Problem, ProblemUpdate, DripReading, Product, Purchase, Variety } from "./types";
+import type { Activity, Batch, Photo, Problem, ProblemUpdate, DripReading, PhotoLog, Product, Purchase, Variety } from "./types";
 
 // Supabase data access (replaces the Phase 1 local JSON store). Reads run as
 // the logged-in user, so Row Level Security limits them to farm members.
@@ -19,6 +19,7 @@ export type Store = {
   problems: Problem[]; // newest first
   purchases: Purchase[];
   dripReadings: DripReading[]; // newest first
+  photoLogs: PhotoLog[]; // newest first
 };
 
 const PHOTO_BUCKET = "photos";
@@ -160,7 +161,7 @@ const toProblem = (r: Row, updates: ProblemUpdate[]): Problem => ({
   photos: (r.photos as Photo[]) ?? [],
   updates,
 });
-const fromProblem = (p: Problem) => ({
+export const fromProblem = (p: Problem) => ({
   id: p.id,
   title: p.title,
   symptoms: p.symptoms,
@@ -239,12 +240,25 @@ export const fromDripReading = (d: DripReading) => ({
   raw_message: d.rawMessage ?? null,
 });
 
+export const toPhotoLog = (r: Row): PhotoLog => ({
+  id: r.id as string,
+  occurredAt: farmIso(r.occurred_at as string),
+  photoId: r.photo_id as string,
+  caption: opt(r.caption),
+});
+export const fromPhotoLog = (p: PhotoLog) => ({
+  id: p.id,
+  occurred_at: p.occurredAt,
+  photo_id: p.photoId,
+  caption: p.caption ?? null,
+});
+
 // ── Reads ─────────────────────────────────────────────────────────────────
 
 // One load per request, shared by every data function a page calls.
 export const readStore = cache(async (): Promise<Store> => {
   const sb = await createClient();
-  const [products, varieties, batches, problems, updates, activities, purchases, dripReadings] = await Promise.all([
+  const [products, varieties, batches, problems, updates, activities, purchases, dripReadings, photoLogs] = await Promise.all([
     selectAll(sb, "products", [["name", true]]),
     selectAll(sb, "varieties", [["name", true]]),
     selectAll(sb, "batches", [["sown_on", false], ["transplanted_on", false]]),
@@ -253,6 +267,7 @@ export const readStore = cache(async (): Promise<Store> => {
     selectAll(sb, "activities", [["occurred_at", false], ["id", true]]),
     selectAllOptional(sb, "purchases", [["occurred_at", false], ["id", true]]),
     selectAllOptional(sb, "drip_readings", [["occurred_at", false], ["id", true]]),
+    selectAllOptional(sb, "photo_logs", [["occurred_at", false], ["id", true]]),
   ]);
   const byProblem = new Map<string, ProblemUpdate[]>();
   for (const r of updates) {
@@ -268,6 +283,7 @@ export const readStore = cache(async (): Promise<Store> => {
     activities: activities.map(toActivity),
     purchases: purchases.map(toPurchase),
     dripReadings: dripReadings.map(toDripReading),
+    photoLogs: photoLogs.map(toPhotoLog),
   };
 });
 
@@ -290,6 +306,8 @@ export const deleteActivityRow = (id: string) => remove("activities", id, "Delet
 
 export const saveDripReadingRow = (d: DripReading) => upsert("drip_readings", fromDripReading(d), "Saving drip reading");
 export const deleteDripReadingRow = (id: string) => remove("drip_readings", id, "Deleting drip reading");
+
+export const deletePhotoLogRow = (id: string) => remove("photo_logs", id, "Deleting photo");
 
 export const saveProductRow = (p: Product) => upsert("products", fromProduct(p), "Saving product");
 export const deleteProductRow = (id: string) => remove("products", id, "Deleting product");

@@ -155,6 +155,14 @@ export type DripReading = {
   rawMessage?: string;
 };
 
+// A photo sent to the bot that is just logged (caption optional), not tied to a problem or entry.
+export type PhotoLog = {
+  id: string;
+  occurredAt: string;
+  photoId: string;
+  caption?: string;
+};
+
 export type FarmData = {
   today: string; // YYYY-MM-DD in farm timezone
   products: Product[];
@@ -164,4 +172,5 @@ export type FarmData = {
   problems: Problem[]; // newest first
   purchases: Purchase[];
   dripReadings: DripReading[]; // newest first
+  photoLogs: PhotoLog[]; // newest first
 };

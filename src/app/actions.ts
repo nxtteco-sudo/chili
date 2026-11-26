@@ -9,6 +9,7 @@ import {
   deleteActivityRow,
   deleteBatchRow,
   deleteDripReadingRow,
+  deletePhotoLogRow,
   deletePhotoFiles,
   deleteProblemRow,
   deleteProblemUpdateRow,
@@ -212,6 +213,15 @@ export async function deleteDripReading(fd: FormData) {
   await requireMember();
   await deleteDripReadingRow(String(fd.get("id") ?? ""));
   done("/timeline?type=drip");
+}
+
+export async function deletePhotoLog(fd: FormData) {
+  await requireMember();
+  const id = String(fd.get("id") ?? "");
+  const log = (await readStore()).photoLogs.find((p) => p.id === id);
+  await deletePhotoLogRow(id);
+  await deletePhotoFiles(log ? [log.photoId] : []);
+  done("/timeline?type=photo");
 }
 
 // ── Problems ──────────────────────────────────────────────────────────────

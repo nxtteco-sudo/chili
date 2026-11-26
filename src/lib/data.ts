@@ -4,7 +4,7 @@ import { batchInfo, isActiveBatch } from "./batches";
 import { addDays, dayKey, diffDays, monthKey } from "./dates";
 import { readStore } from "./db";
 import { abProductId, stockOf, type Stock } from "./stock";
-import type { Activity, ActivityType, Batch, DripReading, FarmData, Problem, Product } from "./types";
+import type { Activity, ActivityType, Batch, DripReading, FarmData, PhotoLog, Problem, Product } from "./types";
 
 // Every page reads through these functions. Data comes from Supabase via
 // readStore(), loaded once per request and filtered here.
@@ -21,6 +21,7 @@ async function farm(): Promise<FarmData> {
     problems: store.problems,
     purchases: store.purchases,
     dripReadings: store.dripReadings,
+    photoLogs: store.photoLogs,
   };
 }
 
@@ -194,6 +195,16 @@ export async function getEcPhSeries(sinceDays?: number): Promise<EcPhPoint[]> {
     .filter((a): a is Extract<Activity, { type: "tank_mix" }> => a.type === "tank_mix")
     .map((a) => ({ date: dayKey(a.occurredAt), ec: a.tankMix.ec, ph: a.tankMix.ph, activityId: a.id }))
     .reverse();
+}
+
+// Photos sent to the bot that were just logged, newest first.
+export async function getPhotoLogs(filter: { sinceDays?: number; q?: string } = {}): Promise<PhotoLog[]> {
+  const { photoLogs, today } = await farm();
+  const from = filter.sinceDays === undefined ? undefined : addDays(today, -filter.sinceDays);
+  const q = filter.q?.trim().toLowerCase();
+  return photoLogs.filter(
+    (p) => (from === undefined || dayKey(p.occurredAt) >= from) && (!q || "photo gambar".includes(q) || (p.caption ?? "").toLowerCase().includes(q)),
+  );
 }
 
 // Readings taken at the drip line, newest first.

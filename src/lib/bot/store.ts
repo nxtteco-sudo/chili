@@ -1,8 +1,9 @@
 import "server-only";
 import type { StorageAdapter } from "grammy";
-import { fromActivity, fromDripReading, fromProduct, fromPurchase, toActivity, toBatch, toProduct, toPurchase } from "@/lib/db";
+import { fromActivity, fromDripReading, fromPhotoLog, fromProblem, fromProduct, fromPurchase, toActivity, toBatch, toPhotoLog, toProduct, toPurchase } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/server";
-import type { Activity, Batch, DripReading, Product, Purchase } from "@/lib/types";
+import { randomUUID } from "node:crypto";
+import type { Activity, Batch, DripReading, Photo, PhotoLog, Problem, Product, Purchase } from "@/lib/types";
 
 // Everything the bot reads and writes. The bot has no login session, so it
 // uses the service role key (bypasses Row Level Security) and decides who may
@@ -96,6 +97,73 @@ export async function saveDripReading(reading: DripReading) {
 export async function deleteDripReading(id: string) {
   const { error } = await createAdminClient().from("drip_readings").delete().eq("id", id);
   if (error) throw new Error(`Deleting drip reading: ${error.message}`);
+}
+
+// ── Photos sent to the bot ────────────────────────────────────────────────
+
+export async function uploadPhoto(bytes: Uint8Array): Promise<string> {
+  const id = randomUUID();
+  const { error } = await createAdminClient().storage.from("photos").upload(`${id}.jpg`, bytes, { contentType: "image/jpeg", upsert: false });
+  if (error) throw new Error(`Uploading photo: ${error.message}`);
+  return id;
+}
+
+async function removePhotoFile(photoId: string) {
+  await createAdminClient().storage.from("photos").remove([`${photoId}.jpg`]);
+}
+
+export async function savePhotoLog(log: PhotoLog) {
+  const { error } = await createAdminClient().from("photo_logs").insert(fromPhotoLog(log));
+  if (error) throw new Error(`Saving photo (has migration 0006 been run?): ${error.message}`);
+}
+
+async function takePhotoLog(id: string): Promise<PhotoLog | undefined> {
+  const sb = createAdminClient();
+  const { data } = await sb.from("photo_logs").select("*").eq("id", id).maybeSingle();
+  if (!data) return undefined;
+  await sb.from("photo_logs").delete().eq("id", id);
+  return toPhotoLog(data);
+}
+
+const photoOf = (log: PhotoLog): Photo => ({ id: log.photoId, caption: log.caption ?? "", url: `/photos/${log.photoId}` });
+
+export async function deletePhotoLog(id: string) {
+  const log = await takePhotoLog(id);
+  if (log) await removePhotoFile(log.photoId);
+}
+
+// "⚠️ Masalah": the photo becomes an open problem (details can be filled in on the dashboard).
+export async function photoLogToProblem(id: string, today: string): Promise<Problem | undefined> {
+  const log = await takePhotoLog(id);
+  if (!log) return undefined;
+  const problem: Problem = {
+    id: randomUUID(),
+    title: log.caption?.slice(0, 120) || "Masalah dari gambar (problem from a photo)",
+    symptoms: log.caption ?? "",
+    affectedPart: "whole plant",
+    severity: "medium",
+    suspectedCause: "",
+    causeKind: "unknown",
+    tags: [],
+    status: "open",
+    foundOn: today,
+    photos: [photoOf(log)],
+    updates: [],
+  };
+  const { error } = await createAdminClient().from("problems").insert(fromProblem(problem));
+  if (error) throw new Error(`Saving problem: ${error.message}`);
+  return problem;
+}
+
+// "📎 Letak pada catatan terakhir": the photo is added to the latest entry.
+export async function photoLogToLastActivity(id: string): Promise<Activity | undefined> {
+  const last = await lastSavedActivity();
+  if (!last) return undefined;
+  const log = await takePhotoLog(id);
+  if (!log) return undefined;
+  const { error } = await createAdminClient().from("activities").update({ photos: [...last.photos, photoOf(log)] }).eq("id", last.id);
+  if (error) throw new Error(`Attaching photo: ${error.message}`);
+  return last;
 }
 
 export async function deletePurchaseGroup(groupId: string) {

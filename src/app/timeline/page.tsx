@@ -3,19 +3,19 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityRow } from "@/components/activity-row";
 import { SearchForm } from "@/components/search-form";
-import { Droplet } from "lucide-react";
-import { deleteDripReading } from "@/app/actions";
+import { Camera, Droplet } from "lucide-react";
+import { deleteDripReading, deletePhotoLog } from "@/app/actions";
 import { DeleteButton } from "@/components/form-ui";
 import { Card, Chips, EmptyState, PageHeader, PageSkeleton, StatusBadge, TypeIcon } from "@/components/ui";
-import { getActivities, getBatches, getDripReadings, getProblems, getProducts, getToday } from "@/lib/data";
+import { getActivities, getBatches, getDripReadings, getPhotoLogs, getProblems, getProducts, getToday } from "@/lib/data";
 import { addDays, dayKey, formatTime, formatWeekday, relativeDay } from "@/lib/dates";
 import { ENTRY_META } from "@/lib/entry-meta";
 import { href, oneOf, param } from "@/lib/params";
-import type { Activity, DripReading, Problem } from "@/lib/types";
+import type { Activity, DripReading, PhotoLog, Problem } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Timeline" };
 
-const TYPES = ["spray", "tank_mix", "fertilizer", "drip", "problem"] as const;
+const TYPES = ["spray", "tank_mix", "fertilizer", "drip", "photo", "problem"] as const;
 const RANGES = { "7": 7, "30": 30, "90": 90, all: undefined } as const;
 type RangeKey = keyof typeof RANGES;
 
@@ -33,7 +33,8 @@ export default function TimelinePage(props: PageProps<"/timeline">) {
 type Row =
   | { kind: "activity"; at: string; activity: Activity }
   | { kind: "problem"; at: string; problem: Problem }
-  | { kind: "drip"; at: string; drip: DripReading };
+  | { kind: "drip"; at: string; drip: DripReading }
+  | { kind: "photo"; at: string; photo: PhotoLog };
 
 async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">["searchParams"] }) {
   const sp = await searchParams;
@@ -44,12 +45,13 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
   const allBatches = await getBatches();
   const batchId = allBatches.some((b) => b.batch.id === param(sp, "batch")) ? param(sp, "batch") : undefined;
 
-  const [today, products, activities, problems, drips] = await Promise.all([
+  const [today, products, activities, problems, drips, photos] = await Promise.all([
     getToday(),
     getProducts(),
-    type === "problem" || type === "drip" ? Promise.resolve([]) : getActivities({ type, q, sinceDays, batchId }),
+    type === "problem" || type === "drip" || type === "photo" ? Promise.resolve([]) : getActivities({ type, q, sinceDays, batchId }),
     !type || type === "problem" ? getProblems({ q, batchId }) : Promise.resolve([]),
     (!type || type === "drip") && !batchId ? getDripReadings({ sinceDays, q }) : Promise.resolve([]),
+    (!type || type === "photo") && !batchId ? getPhotoLogs({ sinceDays, q }) : Promise.resolve([]),
   ]);
 
   const since = sinceDays !== undefined ? addDays(today, -sinceDays) : undefined;
@@ -59,6 +61,7 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
       .filter((p) => !since || p.foundOn >= since)
       .map((p) => ({ kind: "problem" as const, at: `${p.foundOn}T23:59:00+08:00`, problem: p })),
     ...drips.map((d) => ({ kind: "drip" as const, at: d.occurredAt, drip: d })),
+    ...photos.map((p) => ({ kind: "photo" as const, at: p.occurredAt, photo: p })),
   ].sort((a, z) => z.at.localeCompare(a.at));
 
   const days = new Map<string, Row[]>();
@@ -81,7 +84,8 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
         items={[
           { href: href("/timeline", { ...base, type: undefined }), label: "All", active: !type },
           ...TYPES.map((t) => {
-            const meta = t === "drip" ? { label: "Drip reading", icon: Droplet, text: "text-water" } : ENTRY_META[t];
+            const meta =
+              t === "drip" ? { label: "Drip reading", icon: Droplet, text: "text-water" } : t === "photo" ? { label: "Photo", icon: Camera, text: "text-ink-2" } : ENTRY_META[t];
             const Icon = meta.icon;
             return {
               href: href("/timeline", { ...base, type: t }),
@@ -133,6 +137,8 @@ async function Timeline({ searchParams }: { searchParams: PageProps<"/timeline">
                     <ActivityRow key={r.activity.id} activity={r.activity} products={products} />
                   ) : r.kind === "drip" ? (
                     <DripRow key={r.drip.id} drip={r.drip} />
+                  ) : r.kind === "photo" ? (
+                    <PhotoRow key={r.photo.id} photo={r.photo} />
                   ) : (
                     <ProblemRow key={r.problem.id} problem={r.problem} />
                   ),
@@ -158,6 +164,22 @@ function DripRow({ drip }: { drip: DripReading }) {
         <p className="truncate text-sm text-ink-2">Measured at the drip line · {formatTime(drip.occurredAt)}</p>
       </div>
       <DeleteButton action={deleteDripReading} fields={{ id: drip.id }} label="" confirmText="Delete this drip reading?" />
+    </div>
+  );
+}
+
+function PhotoRow({ photo }: { photo: PhotoLog }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <a href={`/photos/${photo.photoId}`} target="_blank" rel="noreferrer" className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/photos/${photo.photoId}`} alt={photo.caption ?? "Photo"} loading="lazy" className="size-14 rounded-xl object-cover" />
+      </a>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-medium">{photo.caption || "Photo"}</p>
+        <p className="truncate text-sm text-ink-2">Sent from Telegram · {formatTime(photo.occurredAt)}</p>
+      </div>
+      <DeleteButton action={deletePhotoLog} fields={{ id: photo.id }} label="" confirmText="Delete this photo?" />
     </div>
   );
 }
