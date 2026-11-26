@@ -12,7 +12,10 @@ import { deleteActivity, deletePurchaseGroup, getTelegramUser, lastSavedActivity
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
-type Session = { flow?: Flow["id"]; step: number; draft: Draft; values: string[]; raw?: string };
+type Session = { flow?: Flow["id"]; step: number; draft: Draft; values: string[]; raw?: string; at?: number };
+
+// An unfinished flow is dropped after this long, so one odd message can't block the next ones.
+const FLOW_TTL_MS = 10 * 60 * 1000;
 type BotContext = Context & SessionFlavor<Session>;
 
 const MENU = {
@@ -51,6 +54,15 @@ const reset = (ctx: BotContext) => {
   ctx.session = { step: 0, draft: {}, values: [] };
 };
 
+// Would the open question accept this text as its answer?
+async function fitsOpenQuestion(ctx: BotContext, text: string) {
+  const s = ctx.session;
+  const step = s.flow ? FLOWS[s.flow].steps[s.step] : undefined;
+  if (!step) return false;
+  if (!step.parse) return true;
+  return !("error" in step.parse(text, makeCtx(s.draft, await loadCatalog())));
+}
+
 // A product the farmer typed that wasn't in the list is created when the entry is saved.
 async function saveNewProduct(draft: Draft) {
   const product = pendingProduct(draft);
@@ -62,6 +74,7 @@ async function saveNewProduct(draft: Draft) {
 // Shows the next unanswered question, or the summary once everything is filled in.
 async function ask(ctx: BotContext) {
   const s = ctx.session;
+  s.at = Date.now();
   const flow = FLOWS[s.flow!];
   const fc = makeCtx(s.draft, await loadCatalog());
   while (s.step < flow.steps.length) {
@@ -233,7 +246,13 @@ export function createBot(token: string) {
   });
 
   bot.on("message:text", async (ctx) => {
-    if (ctx.session.flow) return answer(ctx, ctx.message.text);
+    if (ctx.session.flow) {
+      const stale = Date.now() - (ctx.session.at ?? 0) > FLOW_TTL_MS;
+      // Buttons-flow answers go to the open question. For a typed-sentence flow, anything
+      // that doesn't fit (or an old unfinished flow) is a brand-new message instead.
+      if (!stale && (!ctx.session.raw || (await fitsOpenQuestion(ctx, ctx.message.text)))) return answer(ctx, ctx.message.text);
+      reset(ctx);
+    }
     // No flow running: try to read a typed sentence as a log entry.
     const catalog = await loadCatalog();
     const text = ctx.message.text;
