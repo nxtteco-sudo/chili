@@ -12,16 +12,17 @@ export type NewProduct = { name: string; category: "pesticide" | "fertilizer"; u
 
 export type AiEntry =
   | { type: "spray" | "tank_mix" | "fertilizer"; fields: Record<string, unknown> }
-  | { type: "products"; products: NewProduct[]; daysAgo: number };
+  | { type: "products"; products: NewProduct[]; daysAgo: number }
+  | { type: "drip_reading"; ec?: number; ph?: number; daysAgo: number; time?: string };
 
 const nullable = (type: string, extra: object = {}) => ({ type: [type, "null"], ...extra });
 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["type", "products", "daysAgo", "productName", "unit", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method"],
+  required: ["type", "products", "daysAgo", "productName", "unit", "dosePerTank", "tankSizeL", "tanks", "target", "weather", "abUnit", "aAmount", "bAmount", "waterL", "ec", "ph", "quantity", "method", "time"],
   properties: {
-    type: { type: "string", enum: ["spray", "tank_mix", "fertilizer", "products", "unknown"] },
+    type: { type: "string", enum: ["spray", "tank_mix", "fertilizer", "products", "drip_reading", "unknown"] },
     products: {
       type: "array",
       items: {
@@ -51,6 +52,7 @@ const SCHEMA = {
     waterL: nullable("number"),
     ec: nullable("number"),
     ph: nullable("number"),
+    time: nullable("string"),
     quantity: nullable("number"),
     method: nullable("string", { enum: ["foliar", "tabur", "siram", "other", null] }),
   },
@@ -64,6 +66,7 @@ Decide the entry type:
 - "spray": spraying pesticide (sembur, racun, spray, drench a product).
 - "tank_mix": mixing a new AB fertilizer tank (baja A dan B, tangki, EC/pH readings).
 - "fertilizer": other fertilizer applied by hand or foliar, not through the drip tank (tabur, siram, baja daun).
+- "drip_reading": the farmer reports an EC and/or pH reading measured where the water comes out of the drip line (e.g. "10AM AB Baja EC 1.8", "EC drip 2.1 pH 6.2"). The AB fertilizer is sent to the plants through the drip, so a message that only gives a reading (no amounts of A or B, no tank size) is a drip_reading, NOT a tank_mix. Fill ec and/or ph, and time as 24-hour "HH:MM" if a clock time is written ("10AM" -> "10:00", "3pm" -> "15:00"), otherwise null. Use tank_mix only when he says he mixed/prepared a tank or gives amounts of A and B.
 - "products": the farmer lists products he bought, received or wants added to his product list (beli, stock, tambah produk, "have/ada 25 set" of a product with a pack size), without spraying or mixing anything. A message that only says what he has in stock (e.g. "Baja AB have 25 set each 14kg") is "products", not tank_mix. Fill "products" with one item per product. Leave it an empty list for every other type.
 - "unknown": anything else, or you cannot tell.
 
@@ -110,6 +113,13 @@ export async function parseLogMessage(text: string, catalog: Catalog, today: str
         .slice(0, 20)
         .map(({ quantity, quantityUnit, ...p }) => ({ ...p, ...(quantity && quantityUnit ? { quantity, quantityUnit } : {}) }));
       return products.length ? { type: "products", products, daysAgo: typeof parsed.daysAgo === "number" ? parsed.daysAgo : 0 } : null;
+    }
+    if (parsed.type === "drip_reading") {
+      const ec = typeof parsed.ec === "number" && parsed.ec >= 0 && parsed.ec <= 20 ? parsed.ec : undefined;
+      const ph = typeof parsed.ph === "number" && parsed.ph >= 0 && parsed.ph <= 14 ? parsed.ph : undefined;
+      if (ec === undefined && ph === undefined) return null;
+      const time = typeof parsed.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(parsed.time) ? parsed.time : undefined;
+      return { type: "drip_reading", ec, ph, time, daysAgo: typeof parsed.daysAgo === "number" ? parsed.daysAgo : 0 };
     }
     if (parsed.type !== "spray" && parsed.type !== "tank_mix" && parsed.type !== "fertilizer") return null;
     const { type, productName, unit, ...rest } = parsed;

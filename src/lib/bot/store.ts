@@ -1,8 +1,8 @@
 import "server-only";
 import type { StorageAdapter } from "grammy";
-import { fromActivity, fromProduct, fromPurchase, toActivity, toBatch, toProduct, toPurchase } from "@/lib/db";
+import { fromActivity, fromDripReading, fromProduct, fromPurchase, toActivity, toBatch, toProduct, toPurchase } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/server";
-import type { Activity, Batch, Product, Purchase } from "@/lib/types";
+import type { Activity, Batch, DripReading, Product, Purchase } from "@/lib/types";
 
 // Everything the bot reads and writes. The bot has no login session, so it
 // uses the service role key (bypasses Row Level Security) and decides who may
@@ -86,6 +86,16 @@ export async function savePurchases(purchases: Purchase[]) {
   if (purchases.length === 0) return;
   const { error } = await createAdminClient().from("purchases").insert(purchases.map(fromPurchase));
   if (error) throw new Error(`Saving purchases (has migration 0004 been run?): ${error.message}`);
+}
+
+export async function saveDripReading(reading: DripReading) {
+  const { error } = await createAdminClient().from("drip_readings").insert(fromDripReading(reading));
+  if (error) throw new Error(`Saving drip reading (has migration 0005 been run?): ${error.message}`);
+}
+
+export async function deleteDripReading(id: string) {
+  const { error } = await createAdminClient().from("drip_readings").delete().eq("id", id);
+  if (error) throw new Error(`Deleting drip reading: ${error.message}`);
 }
 
 export async function deletePurchaseGroup(groupId: string) {

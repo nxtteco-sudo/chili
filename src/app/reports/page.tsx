@@ -9,6 +9,7 @@ import { STAGE_META } from "@/lib/batches";
 import {
   getActivities,
   getBatches,
+  getDripSeries,
   getEcPhSeries,
   getMonthlyUsage,
   getProblems,
@@ -37,8 +38,9 @@ export default function ReportsPage() {
 async function Reports() {
   const today = await getToday();
   const months = Array.from({ length: 6 }, (_, i) => addMonths(monthKey(today), i - 5));
-  const [series, usage, rotation, problems, batches, sprays90, products, month30] = await Promise.all([
+  const [series, drip, usage, rotation, problems, batches, sprays90, products, month30] = await Promise.all([
     getEcPhSeries(TREND_DAYS),
+    getDripSeries(TREND_DAYS),
     getMonthlyUsage(months),
     getSprayRotation(),
     getProblems(),
@@ -51,6 +53,9 @@ async function Reports() {
   const events = problems.map((p) => ({ date: p.foundOn, label: p.title, href: `/problems/${p.id}` }));
   const ecPoints = series.flatMap((s) => (s.ec !== undefined ? [{ date: s.date, value: s.ec, href: `/entries/${s.activityId}` }] : []));
   const phPoints = series.flatMap((s) => (s.ph !== undefined ? [{ date: s.date, value: s.ph, href: `/entries/${s.activityId}` }] : []));
+
+  const dripEc = drip.flatMap((d) => (d.ec !== undefined ? [{ date: d.date, value: d.ec }] : []));
+  const dripPh = drip.flatMap((d) => (d.ph !== undefined ? [{ date: d.date, value: d.ph }] : []));
 
   const last30Tanks = month30.filter((a) => a.type === "tank_mix");
   const ec30 = last30Tanks.flatMap((a) => (a.type === "tank_mix" && a.tankMix.ec !== undefined ? [a.tankMix.ec] : []));
@@ -90,6 +95,11 @@ async function Reports() {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <LineChart title="EC" subtitle={`Each new tank, last ${TREND_DAYS} days`} unit="mS/cm" color="var(--water)" points={ecPoints} events={events} />
         <LineChart title="pH" subtitle={`Each new tank, last ${TREND_DAYS} days`} color="var(--water)" points={phPoints} events={events} />
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <LineChart title="Drip EC" subtitle={`Measured at the drip line, last ${TREND_DAYS} days`} unit="mS/cm" color="var(--water)" points={dripEc} events={events} />
+        <LineChart title="Drip pH" subtitle={`Measured at the drip line, last ${TREND_DAYS} days`} color="var(--water)" points={dripPh} events={events} />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

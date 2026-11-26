@@ -146,6 +146,15 @@ export type Purchase = {
   rawMessage?: string;
 };
 
+// EC / pH measured at the drip line (water going to the plants). Not a tank mix.
+export type DripReading = {
+  id: string;
+  occurredAt: string;
+  ec?: number;
+  ph?: number;
+  rawMessage?: string;
+};
+
 export type FarmData = {
   today: string; // YYYY-MM-DD in farm timezone
   products: Product[];
@@ -154,4 +163,5 @@ export type FarmData = {
   activities: Activity[]; // newest first
   problems: Problem[]; // newest first
   purchases: Purchase[];
+  dripReadings: DripReading[]; // newest first
 };

@@ -20,6 +20,7 @@ async function farm(): Promise<FarmData> {
     activities: store.activities,
     problems: store.problems,
     purchases: store.purchases,
+    dripReadings: store.dripReadings,
   };
 }
 
@@ -192,6 +193,18 @@ export async function getEcPhSeries(sinceDays?: number): Promise<EcPhPoint[]> {
   return activities
     .filter((a): a is Extract<Activity, { type: "tank_mix" }> => a.type === "tank_mix")
     .map((a) => ({ date: dayKey(a.occurredAt), ec: a.tankMix.ec, ph: a.tankMix.ph, activityId: a.id }))
+    .reverse();
+}
+
+// Readings taken at the drip line, oldest first.
+export type DripPoint = { date: string; id: string; ec?: number; ph?: number };
+
+export async function getDripSeries(sinceDays?: number): Promise<DripPoint[]> {
+  const { dripReadings, today } = await farm();
+  const from = sinceDays === undefined ? undefined : addDays(today, -sinceDays);
+  return dripReadings
+    .filter((d) => from === undefined || dayKey(d.occurredAt) >= from)
+    .map((d) => ({ date: dayKey(d.occurredAt), id: d.id, ec: d.ec, ph: d.ph }))
     .reverse();
 }
 

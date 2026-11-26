@@ -8,7 +8,7 @@ import { convertQty, friendlyQty } from "@/lib/units";
 import type { Product, Purchase } from "@/lib/types";
 import { parseLogMessage } from "@/lib/ai/parse";
 import { FLOWS, makeCtx, pendingProduct, prefill, rows, type Draft, type Flow, type Option } from "./flows";
-import { deleteActivity, deletePurchaseGroup, getTelegramUser, lastSavedActivity, loadCatalog, loadStockData, saveActivity, saveProduct, savePurchases, sessionStorage } from "./store";
+import { deleteActivity, deleteDripReading, deletePurchaseGroup, getTelegramUser, lastSavedActivity, loadCatalog, loadStockData, saveActivity, saveDripReading, saveProduct, savePurchases, sessionStorage } from "./store";
 
 // The Telegram bot (Phase 4, button logging). Wording: Malay first, English in brackets.
 
@@ -211,6 +211,12 @@ export function createBot(token: string) {
     });
   });
 
+  bot.callbackQuery(/^dr:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await deleteDripReading(ctx.match[1]);
+    return ctx.editMessageText("🗑️ Dipadam. (Deleted.)");
+  });
+
   bot.callbackQuery(/^u:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const id = ctx.match[1];
@@ -259,6 +265,17 @@ export function createBot(token: string) {
     await ctx.replyWithChatAction("typing");
     const entry = await parseLogMessage(text, catalog, makeCtx({}, catalog).today);
     if (!entry) return ctx.reply("Tak faham lagi 😅 Cuba taip macam: sembur Movento 20ml satu tong, 4 tong, thrips\n(Couldn't read that. Or use /menu for buttons.)");
+    if (entry.type === "drip_reading") {
+      const today = makeCtx({}, catalog).today;
+      const day = addDays(today, -entry.daysAgo);
+      const occurredAt = entry.time ? atTime(day, entry.time) : entry.daysAgo ? atTime(day, "08:00") : new Date().toISOString();
+      const reading = { id: randomUUID(), occurredAt, ec: entry.ec, ph: entry.ph, rawMessage: text };
+      await saveDripReading(reading);
+      const values = [entry.ec !== undefined && `⚡ EC ${entry.ec}`, entry.ph !== undefined && `🧪 pH ${entry.ph}`].filter(Boolean).join("   ");
+      return ctx.reply(`✅ Disimpan: bacaan titisan (drip). (Saved: drip reading)\n\n${formatShort(day)} ${entry.time ?? ""}\n${values}`.replace("  \n", "\n"), {
+        reply_markup: new InlineKeyboard().text("↩️ Salah? Padam", `dr:${reading.id}`),
+      });
+    }
     if (entry.type === "products") {
       const made: Product[] = [];
       const purchases: Purchase[] = [];
